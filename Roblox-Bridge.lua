@@ -1,13 +1,13 @@
 ```lua
 --==================================================
 -- ROBLOX ↔ DISCORD BRIDGE
--- ADVANCED MOBILE UI + CLIPBOARD
+-- MOBILE + PC
+-- FAST STARTUP / AUTO SYNC / CLIPBOARD
 --==================================================
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -19,6 +19,10 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 local SERVER_URL = "https://roblox-bridge-production.up.railway.app"
 local POLL_INTERVAL = 3
 
+--==================================================
+-- HTTP REQUEST
+--==================================================
+
 local httpRequest =
     (syn and syn.request)
     or (http and http.request)
@@ -26,40 +30,53 @@ local httpRequest =
     or request
 
 if not httpRequest then
-    warn("HTTP request function is not available.")
+    warn("HTTP request is not supported by this executor.")
     return
 end
 
 --==================================================
--- CLIPBOARD FUNCTION
+-- SAFE CLIPBOARD
 --==================================================
 
 local function CopyToClipboard(text)
 
-    local clipboardFunction =
-        setclipboard
-        or toclipboard
-        or (syn and syn.write_clipboard)
+    local fn = nil
 
-    if not clipboardFunction then
+    pcall(function()
+        fn = setclipboard
+    end)
+
+    if not fn then
+        pcall(function()
+            fn = toclipboard
+        end)
+    end
+
+    if not fn and syn then
+        pcall(function()
+            fn = syn.write_clipboard
+        end)
+    end
+
+    if not fn then
         return false
     end
 
-    local success = pcall(function()
-        clipboardFunction(text)
+    local ok = pcall(function()
+        fn(tostring(text))
     end)
 
-    return success
+    return ok
 end
 
 --==================================================
--- CLEAN OLD UI
+-- REMOVE OLD UI
 --==================================================
 
-local OldGui = PlayerGui:FindFirstChild("DiscordBridgeUI")
+local OldUI = PlayerGui:FindFirstChild("DiscordBridgeUI")
 
-if OldGui then
-    OldGui:Destroy()
+if OldUI then
+    OldUI:Destroy()
 end
 
 --==================================================
@@ -73,13 +90,39 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = PlayerGui
 
 --==================================================
+-- MOBILE / PC SIZE
+--==================================================
+
+local Camera = workspace.CurrentCamera
+
+local Viewport = Camera and Camera.ViewportSize or Vector2.new(800, 600)
+
+local IsSmallScreen = Viewport.X < 600
+
+local WindowWidth
+local WindowHeight
+
+if IsSmallScreen then
+    WindowWidth = math.min(Viewport.X - 30, 500)
+    WindowHeight = math.min(Viewport.Y - 50, 430)
+else
+    WindowWidth = 500
+    WindowHeight = 430
+end
+
+--==================================================
 -- MAIN WINDOW
 --==================================================
 
 local Main = Instance.new("Frame")
 Main.Name = "MainWindow"
-Main.Size = UDim2.new(0, 500, 0, 430)
-Main.Position = UDim2.new(0.5, -250, 0.5, -215)
+Main.Size = UDim2.new(0, WindowWidth, 0, WindowHeight)
+Main.Position = UDim2.new(
+    0.5,
+    -WindowWidth / 2,
+    0.5,
+    -WindowHeight / 2
+)
 Main.BackgroundColor3 = Color3.fromRGB(18, 20, 27)
 Main.BorderSizePixel = 0
 Main.Parent = ScreenGui
@@ -136,7 +179,7 @@ Subtitle.TextXAlignment = Enum.TextXAlignment.Left
 Subtitle.Parent = TopBar
 
 --==================================================
--- WINDOW BUTTONS
+-- MINIMIZE
 --==================================================
 
 local Minimize = Instance.new("TextButton")
@@ -149,6 +192,10 @@ Minimize.TextSize = 28
 Minimize.TextColor3 = Color3.fromRGB(195, 200, 210)
 Minimize.AutoButtonColor = false
 Minimize.Parent = TopBar
+
+--==================================================
+-- CLOSE
+--==================================================
 
 local Close = Instance.new("TextButton")
 Close.Size = UDim2.new(0, 45, 0, 42)
@@ -208,7 +255,6 @@ ChatScroll.Size = UDim2.new(1, -20, 1, -20)
 ChatScroll.BackgroundTransparency = 1
 ChatScroll.BorderSizePixel = 0
 ChatScroll.ScrollBarThickness = 5
-ChatScroll.ScrollBarImageTransparency = 0.25
 ChatScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 ChatScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ChatScroll.Parent = ChatFrame
@@ -227,7 +273,6 @@ local function AddMessage(author, content, isOwn)
     local Message = Instance.new("Frame")
     Message.AutomaticSize = Enum.AutomaticSize.Y
     Message.Size = UDim2.new(1, -5, 0, 0)
-
     Message.BackgroundColor3 =
         isOwn
         and Color3.fromRGB(31, 55, 47)
@@ -240,39 +285,33 @@ local function AddMessage(author, content, isOwn)
     Corner.CornerRadius = UDim.new(0, 9)
     Corner.Parent = Message
 
-    --==================================================
     -- AUTHOR
-    --==================================================
 
     local Author = Instance.new("TextLabel")
     Author.BackgroundTransparency = 1
     Author.Position = UDim2.new(0, 12, 0, 8)
-    Author.Size = UDim2.new(1, -70, 0, 21)
+    Author.Size = UDim2.new(1, -65, 0, 21)
     Author.Font = Enum.Font.GothamBold
     Author.Text = tostring(author)
-
     Author.TextColor3 =
         isOwn
         and Color3.fromRGB(100, 220, 160)
         or Color3.fromRGB(120, 175, 255)
-
     Author.TextSize = 14
     Author.TextXAlignment = Enum.TextXAlignment.Left
     Author.Parent = Message
 
-    --==================================================
-    -- CLIPBOARD BUTTON
-    --==================================================
+    -- CLIPBOARD
 
     local Clipboard = Instance.new("TextButton")
-    Clipboard.Size = UDim2.new(0, 34, 0, 30)
-    Clipboard.Position = UDim2.new(1, -44, 0, 5)
+    Clipboard.Size = UDim2.new(0, 36, 0, 32)
+    Clipboard.Position = UDim2.new(1, -46, 0, 5)
     Clipboard.BackgroundColor3 = Color3.fromRGB(42, 46, 58)
     Clipboard.BorderSizePixel = 0
     Clipboard.Text = "📋"
-    Clipboard.TextSize = 16
+    Clipboard.TextSize = 17
     Clipboard.Font = Enum.Font.GothamBold
-    Clipboard.TextColor3 = Color3.fromRGB(220, 225, 235)
+    Clipboard.TextColor3 = Color3.fromRGB(225, 230, 240)
     Clipboard.AutoButtonColor = false
     Clipboard.Parent = Message
 
@@ -280,13 +319,11 @@ local function AddMessage(author, content, isOwn)
     ClipboardCorner.CornerRadius = UDim.new(0, 7)
     ClipboardCorner.Parent = Clipboard
 
-    --==================================================
-    -- MESSAGE CONTENT
-    --==================================================
+    -- CONTENT
 
     local Content = Instance.new("TextLabel")
     Content.BackgroundTransparency = 1
-    Content.Position = UDim2.new(0, 12, 0, 32)
+    Content.Position = UDim2.new(0, 12, 0, 34)
     Content.Size = UDim2.new(1, -24, 0, 0)
     Content.AutomaticSize = Enum.AutomaticSize.Y
     Content.Font = Enum.Font.Gotham
@@ -299,18 +336,14 @@ local function AddMessage(author, content, isOwn)
     Content.Parent = Message
 
     local Padding = Instance.new("UIPadding")
-    Padding.PaddingBottom = UDim.new(0, 11)
+    Padding.PaddingBottom = UDim.new(0, 12)
     Padding.Parent = Message
 
-    --==================================================
-    -- CLIPBOARD CLICK
-    --==================================================
+    -- COPY
 
     Clipboard.MouseButton1Click:Connect(function()
 
-        local copied = CopyToClipboard(tostring(content))
-
-        if copied then
+        if CopyToClipboard(content) then
 
             Clipboard.Text = "✓"
 
@@ -321,7 +354,7 @@ local function AddMessage(author, content, isOwn)
 
             task.delay(1.2, function()
 
-                if Clipboard and Clipboard.Parent then
+                if Clipboard.Parent then
                     Clipboard.Text = "📋"
                 end
 
@@ -335,11 +368,11 @@ local function AddMessage(author, content, isOwn)
                 Color3.fromRGB(235, 85, 90)
 
             StatusText.Text =
-                "Clipboard not supported"
+                "Clipboard unsupported"
 
             task.delay(1.2, function()
 
-                if Clipboard and Clipboard.Parent then
+                if Clipboard.Parent then
                     Clipboard.Text = "📋"
                 end
 
@@ -348,19 +381,12 @@ local function AddMessage(author, content, isOwn)
         end
     end)
 
-    --==================================================
-    -- SCROLL TO BOTTOM
-    --==================================================
-
     task.defer(function()
 
         ChatScroll.CanvasPosition =
             Vector2.new(
                 0,
-                math.max(
-                    0,
-                    ChatScroll.AbsoluteCanvasSize.Y
-                )
+                math.max(0, ChatScroll.AbsoluteCanvasSize.Y)
             )
 
     end)
@@ -427,7 +453,7 @@ Footer.TextXAlignment = Enum.TextXAlignment.Left
 Footer.Parent = Main
 
 --==================================================
--- MINIMIZED BUTTON
+-- MINI BUTTON
 --==================================================
 
 local MiniButton = Instance.new("TextButton")
@@ -446,55 +472,50 @@ MiniCorner.CornerRadius = UDim.new(1, 0)
 MiniCorner.Parent = MiniButton
 
 --==================================================
--- DRAG SYSTEM
+-- DRAG
 --==================================================
 
 local dragging = false
 local dragStart
 local startPos
 
-local function MakeDraggable(object)
+TopBar.InputBegan:Connect(function(input)
 
-    object.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
 
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
 
-            dragging = true
-            dragStart = input.Position
-            startPos = Main.Position
+        input.Changed:Connect(function()
 
-            input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
 
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+        end)
+    end
+end)
 
-            end)
-        end
-    end)
+UserInputService.InputChanged:Connect(function(input)
 
-    UserInputService.InputChanged:Connect(function(input)
+    if dragging and
+        (
+            input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+        ) then
 
-        if dragging and
-            (
-                input.UserInputType == Enum.UserInputType.MouseMovement
-                or input.UserInputType == Enum.UserInputType.Touch
-            ) then
+        local delta = input.Position - dragStart
 
-            local delta = input.Position - dragStart
-
-            Main.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-end
-
-MakeDraggable(TopBar)
+        Main.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
 
 --==================================================
 -- SEND
@@ -540,10 +561,9 @@ local function SendMessage()
 
     if success and response then
 
-        local statusCode =
-            tonumber(response.StatusCode)
+        local code = tonumber(response.StatusCode)
 
-        if statusCode == 200 then
+        if code == 200 then
 
             AddMessage(
                 Player.Name,
@@ -566,7 +586,7 @@ local function SendMessage()
 
             StatusText.Text =
                 "Send failed (" ..
-                tostring(statusCode) ..
+                tostring(code) ..
                 ")"
         end
 
@@ -580,7 +600,6 @@ local function SendMessage()
     end
 
     SendButton.Text = "SEND"
-
     SendButton.BackgroundColor3 =
         Color3.fromRGB(70, 110, 220)
 
@@ -628,23 +647,23 @@ local function FetchDiscordMessage()
         return
     end
 
-    local statusCode =
+    local code =
         tonumber(response.StatusCode)
 
-    if statusCode ~= 200 then
+    if code ~= 200 then
 
         StatusDot.BackgroundColor3 =
             Color3.fromRGB(235, 85, 90)
 
         StatusText.Text =
             "Server error (" ..
-            tostring(statusCode) ..
+            tostring(code) ..
             ")"
 
         return
     end
 
-    local decodedSuccess, data =
+    local ok, data =
         pcall(function()
 
             return HttpService:JSONDecode(
@@ -653,7 +672,8 @@ local function FetchDiscordMessage()
 
         end)
 
-    if not decodedSuccess or not data then
+    if not ok or
+       type(data) ~= "table" then
 
         StatusDot.BackgroundColor3 =
             Color3.fromRGB(235, 85, 90)
@@ -713,7 +733,7 @@ local function FetchDiscordMessage()
 end
 
 --==================================================
--- AUTOMATIC POLLING
+-- AUTO SYNC
 --==================================================
 
 task.spawn(function()
@@ -751,7 +771,7 @@ MiniButton.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- CLOSE / DESTROY
+-- CLOSE
 --==================================================
 
 Close.MouseButton1Click:Connect(function()
@@ -761,65 +781,7 @@ Close.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- BUTTON EFFECTS
---==================================================
-
-SendButton.MouseEnter:Connect(function()
-
-    TweenService:Create(
-        SendButton,
-        TweenInfo.new(0.15),
-        {
-            BackgroundColor3 =
-                Color3.fromRGB(85, 125, 235)
-        }
-    ):Play()
-
-end)
-
-SendButton.MouseLeave:Connect(function()
-
-    TweenService:Create(
-        SendButton,
-        TweenInfo.new(0.15),
-        {
-            BackgroundColor3 =
-                Color3.fromRGB(70, 110, 220)
-        }
-    ):Play()
-
-end)
-
-Close.MouseEnter:Connect(function()
-
-    Close.TextColor3 =
-        Color3.fromRGB(255, 70, 75)
-
-end)
-
-Close.MouseLeave:Connect(function()
-
-    Close.TextColor3 =
-        Color3.fromRGB(235, 100, 105)
-
-end)
-
-Minimize.MouseEnter:Connect(function()
-
-    Minimize.TextColor3 =
-        Color3.fromRGB(255, 255, 255)
-
-end)
-
-Minimize.MouseLeave:Connect(function()
-
-    Minimize.TextColor3 =
-        Color3.fromRGB(195, 200, 210)
-
-end)
-
---==================================================
--- START
+-- INITIAL STATUS
 --==================================================
 
 StatusText.Text =
