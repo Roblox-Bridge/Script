@@ -15,7 +15,7 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 -- CONFIG
 --==================================================
 
-local SERVER_URL = "https://roblox-bridge-production.up.railway.app"
+local SERVER_URL = "roblox-bridge-production.up.railway.app"
 
 local POLL_INTERVAL = 3
 
