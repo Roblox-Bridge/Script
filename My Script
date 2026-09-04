@@ -7,261 +7,152 @@ if not game:IsLoaded() then
 	until game:IsLoaded()
 end;
 --==================================================
--- LEGENDS HUB - CUSTOM UI
--- WindUI replacement (core script below remains untouched)
+-- LEGENDS HUB | SELF-CONTAINED UI ADAPTER
+-- No external UI library. Core logic below is preserved.
+-- The original script only calls WindUI:Notify(), so we
+-- provide that same method locally.
 --==================================================
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local UIS = game:GetService("UserInputService")
-local LP = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
 
 pcall(function()
-    local old = CoreGui:FindFirstChild("LEGENDS_HUB_UI")
+    local old = CoreGui:FindFirstChild("LEGENDS_HUB")
     if old then old:Destroy() end
 end)
 
-local LegendsUI = {}
-local function New(class, props, parent)
-    local o = Instance.new(class)
-    for k,v in pairs(props or {}) do o[k] = v end
-    if parent then o.Parent = parent end
-    return o
+local function mk(class, props, parent)
+    local x = Instance.new(class)
+    for k,v in pairs(props or {}) do x[k] = v end
+    x.Parent = parent
+    return x
+end
+local function round(x, n)
+    mk("UICorner", {CornerRadius = UDim.new(0,n)}, x)
+end
+local function line(x, color, thickness, transparency)
+    mk("UIStroke", {Color=color, Thickness=thickness or 1, Transparency=transparency or 0}, x)
+end
+local function txt(parent, text, size, pos, font, color)
+    return mk("TextLabel", {
+        BackgroundTransparency=1, Size=size, Position=pos, Text=text or "",
+        Font=font or Enum.Font.Gotham, TextSize=14,
+        TextColor3=color or Color3.fromRGB(235,237,245),
+        TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center
+    }, parent)
 end
 
-local gui = New("ScreenGui", {
-    Name = "LEGENDS_HUB_UI",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 999999
+local gui = mk("ScreenGui", {
+    Name="LEGENDS_HUB", ResetOnSpawn=false, IgnoreGuiInset=true,
+    DisplayOrder=100000, ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 }, CoreGui)
 
-local main = New("Frame", {
-    Name = "Main",
-    Size = UDim2.fromOffset(590, 380),
-    Position = UDim2.new(0.5,-295,0.5,-190),
-    BackgroundColor3 = Color3.fromRGB(13,15,21),
-    BorderSizePixel = 0,
-    ClipsDescendants = true
+local main = mk("Frame", {
+    Name="Main", AnchorPoint=Vector2.new(.5,.5), Position=UDim2.new(.5,0,.5,0),
+    Size=UDim2.fromOffset(640,410), BackgroundColor3=Color3.fromRGB(13,15,22),
+    BorderSizePixel=0, ClipsDescendants=true
 }, gui)
-New("UICorner",{CornerRadius=UDim.new(0,14)},main)
-New("UIStroke",{Color=Color3.fromRGB(55,60,78),Thickness=1,Transparency=.15},main)
+round(main,16); line(main,Color3.fromRGB(62,66,84),1,.08)
 
-local top = New("Frame", {
-    Size=UDim2.new(1,0,0,66),
-    BackgroundColor3=Color3.fromRGB(18,21,30),
-    BorderSizePixel=0
-},main)
-New("UICorner",{CornerRadius=UDim.new(0,14)},top)
+local top = mk("Frame", {
+    Size=UDim2.new(1,0,0,70), BackgroundColor3=Color3.fromRGB(19,22,31), BorderSizePixel=0
+}, main)
+round(top,16)
+mk("Frame", {Size=UDim2.new(1,0,0,2), Position=UDim2.new(0,0,1,-2), BackgroundColor3=Color3.fromRGB(118,91,255), BorderSizePixel=0}, top)
+local title=txt(top,"LEGENDS HUB",UDim2.fromOffset(350,30),UDim2.fromOffset(22,8),Enum.Font.GothamBold,Color3.fromRGB(248,249,252)); title.TextSize=23
+txt(top,"Blox Fruits  •  Custom interface  •  No WindUI dependency",UDim2.fromOffset(440,22),UDim2.fromOffset(23,38),Enum.Font.Gotham,Color3.fromRGB(145,150,168)).TextSize=11
 
-local accent = New("Frame", {
-    Size=UDim2.new(1,0,0,2),
-    Position=UDim2.new(0,0,1,-2),
-    BackgroundColor3=Color3.fromRGB(112,82,255),
-    BorderSizePixel=0
-},top)
+local dot=mk("Frame",{Size=UDim2.fromOffset(9,9),Position=UDim2.new(1,-155,0,30),BackgroundColor3=Color3.fromRGB(45,220,120),BorderSizePixel=0},top); round(dot,9)
+txt(top,"ONLINE",UDim2.fromOffset(60,20),UDim2.new(1,-140,0,25),Enum.Font.GothamSemibold,Color3.fromRGB(175,235,198)).TextSize=11
 
-New("TextLabel",{
-    BackgroundTransparency=1,
-    Position=UDim2.fromOffset(22,10),
-    Size=UDim2.fromOffset(320,27),
-    Font=Enum.Font.GothamBold,
-    Text="LEGENDS HUB",
-    TextColor3=Color3.fromRGB(245,245,250),
-    TextSize=22,
-    TextXAlignment=Enum.TextXAlignment.Left
-},top)
+local mini=mk("TextButton",{Size=UDim2.fromOffset(32,30),Position=UDim2.new(1,-82,0,20),BackgroundColor3=Color3.fromRGB(31,35,47),BorderSizePixel=0,Text="—",Font=Enum.Font.GothamBold,TextSize=18,TextColor3=Color3.fromRGB(220,223,232),AutoButtonColor=false},top); round(mini,8)
+local close=mk("TextButton",{Size=UDim2.fromOffset(32,30),Position=UDim2.new(1,-44,0,20),BackgroundColor3=Color3.fromRGB(45,29,38),BorderSizePixel=0,Text="×",Font=Enum.Font.GothamBold,TextSize=19,TextColor3=Color3.fromRGB(255,145,170),AutoButtonColor=false},top); round(close,8)
 
-New("TextLabel",{
-    BackgroundTransparency=1,
-    Position=UDim2.fromOffset(23,37),
-    Size=UDim2.fromOffset(330,18),
-    Font=Enum.Font.Gotham,
-    Text="Premium Control Panel",
-    TextColor3=Color3.fromRGB(145,150,170),
-    TextSize=12,
-    TextXAlignment=Enum.TextXAlignment.Left
-},top)
+local side=mk("Frame",{Size=UDim2.fromOffset(160,318),Position=UDim2.fromOffset(12,82),BackgroundColor3=Color3.fromRGB(17,20,28),BorderSizePixel=0},main); round(side,12); line(side,Color3.fromRGB(43,47,62),1,.1)
+local body=mk("Frame",{Size=UDim2.new(1,-184,1,-94),Position=UDim2.fromOffset(172,82),BackgroundColor3=Color3.fromRGB(17,20,28),BorderSizePixel=0},main); round(body,12); line(body,Color3.fromRGB(43,47,62),1,.1)
 
-local statusDot = New("Frame",{
-    Size=UDim2.fromOffset(8,8),
-    Position=UDim2.new(1,-118,0,27),
-    BackgroundColor3=Color3.fromRGB(75,210,125),
-    BorderSizePixel=0
-},top)
-New("UICorner",{CornerRadius=UDim.new(1,0)},statusDot)
-New("TextLabel",{
-    BackgroundTransparency=1,
-    Position=UDim2.new(1,-103,0,19),
-    Size=UDim2.fromOffset(70,25),
-    Font=Enum.Font.GothamSemibold,
-    Text="ONLINE",
-    TextColor3=Color3.fromRGB(95,220,140),
-    TextSize=12,
-    TextXAlignment=Enum.TextXAlignment.Left
-},top)
-
-local minBtn=New("TextButton",{
-    BackgroundTransparency=1,Text="—",Font=Enum.Font.GothamBold,
-    TextColor3=Color3.fromRGB(170,175,195),TextSize=20,
-    Size=UDim2.fromOffset(35,35),Position=UDim2.new(1,-78,0,15)
-},top)
-local closeBtn=New("TextButton",{
-    BackgroundTransparency=1,Text="×",Font=Enum.Font.GothamBold,
-    TextColor3=Color3.fromRGB(190,195,210),TextSize=24,
-    Size=UDim2.fromOffset(35,35),Position=UDim2.new(1,-40,0,15)
-},top)
-
-local side=New("Frame",{
-    Size=UDim2.new(0,145,1,-66),
-    Position=UDim2.fromOffset(0,66),
-    BackgroundColor3=Color3.fromRGB(16,18,26),
-    BorderSizePixel=0
-},main)
-
-local content=New("Frame",{
-    Size=UDim2.new(1,-145,1,-66),
-    Position=UDim2.fromOffset(145,66),
-    BackgroundColor3=Color3.fromRGB(13,15,21),
-    BorderSizePixel=0
-},main)
-
-local pages={}
-local navButtons={}
+local pages={}; local nav={}
 local function page(name)
-    local f=New("ScrollingFrame",{
-        Name=name,Size=UDim2.new(1,-28,1,-28),Position=UDim2.fromOffset(14,14),
-        BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,
-        ScrollBarImageColor3=Color3.fromRGB(85,75,150),CanvasSize=UDim2.new(0,0,0,0),
-        Visible=false
-    },content)
-    New("UIListLayout",{Padding=UDim.new(0,10),SortOrder=Enum.SortOrder.LayoutOrder},f)
-    New("UIPadding",{PaddingLeft=UDim.new(0,2),PaddingRight=UDim.new(0,4),PaddingTop=UDim.new(0,2),PaddingBottom=UDim.new(0,8)},f)
-    pages[name]=f
-    return f
+    local p=mk("Frame",{Name=name,Size=UDim2.new(1,-24,1,-24),Position=UDim2.fromOffset(12,12),BackgroundTransparency=1,Visible=false},body)
+    pages[name]=p; return p
 end
-
-local function label(parent,text,size,color)
-    local l=New("TextLabel",{
-        BackgroundTransparency=1,Size=UDim2.new(1,0,0,size or 24),
-        Font=Enum.Font.GothamSemibold,Text=text,TextColor3=color or Color3.fromRGB(230,232,240),
-        TextSize=14,TextXAlignment=Enum.TextXAlignment.Left
-    },parent)
-    return l
+local dash=page("Dashboard"); local info=page("Info"); local help=page("Help")
+local function header(p,a,b)
+    local h=txt(p,a,UDim2.new(1,0,0,30),UDim2.new(),Enum.Font.GothamBold,Color3.fromRGB(247,248,252)); h.TextSize=22
+    txt(p,b,UDim2.new(1,0,0,20),UDim2.fromOffset(0,31),Enum.Font.Gotham,Color3.fromRGB(139,145,163)).TextSize=11
 end
+local function card(p,a,b,y)
+    local c=mk("Frame",{Size=UDim2.new(1,0,0,58),Position=UDim2.fromOffset(0,y),BackgroundColor3=Color3.fromRGB(21,24,34),BorderSizePixel=0},p); round(c,10); line(c,Color3.fromRGB(43,47,62),1,.1)
+    txt(c,a,UDim2.new(.6,0,1,0),UDim2.fromOffset(14,0),Enum.Font.GothamSemibold,Color3.fromRGB(225,228,237)).TextSize=12
+    local v=txt(c,b,UDim2.new(.35,0,1,0),UDim2.new(.62,0,0,0),Enum.Font.GothamBold,Color3.fromRGB(145,123,255)); v.TextSize=12; v.TextXAlignment=Enum.TextXAlignment.Right
+end
+header(dash,"Dashboard","LEGENDS HUB is active and the original core is still running.")
+card(dash,"Interface","LEGENDS",60); card(dash,"External UI library","NONE",126); card(dash,"Core functions","PRESERVED",192); card(dash,"Notification system","READY",258)
+header(info,"Information","This UI is only a front-end replacement.")
+card(info,"Hub name","LEGENDS HUB",60); card(info,"Dependency","SELF-CONTAINED",126); card(info,"Compatibility","MOUSE + TOUCH",192); card(info,"Core logic","UNCHANGED",258)
+header(help,"Controls","Simple controls for the custom panel.")
+card(help,"Move window","DRAG TOP BAR",60); card(help,"Minimize","TOP — BUTTON",126); card(help,"Close UI","TOP × BUTTON",192); card(help,"Notifications","AUTO HIDE",258)
 
-local function card(parent,title,value,sub)
-    local f=New("Frame",{
-        Size=UDim2.new(1,0,0,62),BackgroundColor3=Color3.fromRGB(20,23,32),BorderSizePixel=0
-    },parent)
-    New("UICorner",{CornerRadius=UDim.new(0,10)},f)
-    New("UIStroke",{Color=Color3.fromRGB(42,46,61),Thickness=1},f)
-    label(f,title,24,Color3.fromRGB(225,228,238)).Position=UDim2.fromOffset(15,8)
-    local v=label(f,value,20,Color3.fromRGB(130,112,255)); v.Position=UDim2.new(1,-170,0,9); v.Size=UDim2.fromOffset(155,20); v.TextXAlignment=Enum.TextXAlignment.Right
-    if sub then
-        local s=label(f,sub,17,Color3.fromRGB(135,140,158)); s.Position=UDim2.fromOffset(15,32); s.Size=UDim2.new(1,-30,0,17); s.Font=Enum.Font.Gotham
+local function show(name)
+    for n,p in pairs(pages) do p.Visible=(n==name) end
+    for n,b in pairs(nav) do
+        b.BackgroundColor3=(n==name) and Color3.fromRGB(40,34,63) or Color3.fromRGB(17,20,28)
+        b.TextColor3=(n==name) and Color3.fromRGB(195,183,255) or Color3.fromRGB(170,175,190)
     end
-    return f
 end
+for i,item in ipairs({{"Dashboard","⌂"},{"Info","◆"},{"Help","?"}}) do
+    local n,ic=item[1],item[2]
+    local b=mk("TextButton",{Size=UDim2.new(1,-16,0,45),Position=UDim2.fromOffset(8,10+(i-1)*52),BackgroundColor3=Color3.fromRGB(17,20,28),BorderSizePixel=0,Text="  "..ic.."   "..n,Font=Enum.Font.GothamSemibold,TextSize=13,TextColor3=Color3.fromRGB(170,175,190),TextXAlignment=Enum.TextXAlignment.Left,AutoButtonColor=false},side)
+    round(b,9); nav[n]=b; b.MouseButton1Click:Connect(function() show(n) end)
+end
+show("Dashboard")
 
-local home=page("Dashboard")
-label(home,"Dashboard",28,Color3.fromRGB(245,245,250))
-card(home,"Hub Status","ONLINE","LEGENDS HUB custom interface is active.")
-card(home,"Automation","READY","Original automation/configuration code is preserved.")
-card(home,"Interface","CUSTOM","WindUI dependency removed from the UI layer.")
-label(home,"Features",22,Color3.fromRGB(245,245,250))
-card(home,"Auto Farming",getgenv().Config and (getgenv().Config["Auto Farming"] and "ON" or "OFF") or "ON","Original configuration value")
-card(home,"FPS Booster",getgenv().Config and (getgenv().Config.Settings and getgenv().Config.Settings["FPS Booster"] and "ON" or "OFF") or "OFF","Original configuration value")
-
-local settings=page("Settings")
-label(settings,"Settings",28,Color3.fromRGB(245,245,250))
-card(settings,"Current Mode","LEGENDS","UI replacement mode")
-card(settings,"Theme","DARK","Clean dark interface")
-card(settings,"Compatibility","PRESERVED","Core script was not rewritten")
-
-local info=page("About")
-label(info,"LEGENDS HUB",28,Color3.fromRGB(245,245,250))
-card(info,"Version","1.0","Custom UI edition")
-card(info,"Design","MODERN","Compact, draggable and responsive")
-card(info,"Core","UNCHANGED","Only the UI/notification layer is replaced")
-
-local navNames={{"Dashboard","⌂"},{"Settings","⚙"},{"About","ⓘ"}}
-for i,item in ipairs(navNames) do
-    local b=New("TextButton",{
-        Size=UDim2.new(1,-18,0,42),Position=UDim2.fromOffset(9,12+(i-1)*49),
-        BackgroundColor3=Color3.fromRGB(20,23,32),BackgroundTransparency=1,
-        BorderSizePixel=0,Font=Enum.Font.GothamSemibold,Text=item[2].."   "..item[1],
-        TextColor3=Color3.fromRGB(150,155,175),TextSize=13,TextXAlignment=Enum.TextXAlignment.Left
-    },side)
-    New("UICorner",{CornerRadius=UDim.new(0,9)},b)
-    navButtons[item[1]]=b
-    b.MouseButton1Click:Connect(function()
-        for n,p in pairs(pages) do p.Visible=(n==item[1]) end
-        for n,x in pairs(navButtons) do
-            x.BackgroundTransparency=(n==item[1]) and 0 or 1
-            x.BackgroundColor3=Color3.fromRGB(29,27,46)
-            x.TextColor3=(n==item[1]) and Color3.fromRGB(205,198,255) or Color3.fromRGB(150,155,175)
+-- Drag with mouse or touch.
+do
+    local dragging=false; local startInput; local startPos
+    top.InputBegan:Connect(function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            dragging=true; startInput=input.Position; startPos=main.Position
+            input.Changed:Connect(function() if input.UserInputState==Enum.UserInputState.End then dragging=false end end)
         end
     end)
-end
-pages.Dashboard.Visible=true
-navButtons.Dashboard.BackgroundTransparency=0
-navButtons.Dashboard.BackgroundColor3=Color3.fromRGB(29,27,46)
-navButtons.Dashboard.TextColor3=Color3.fromRGB(205,198,255)
-
-local dragging=false
-local dragStart,startPos
-top.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-        dragging=true; dragStart=input.Position; startPos=main.Position
-    end
-end)
-UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
-        local d=input.Position-dragStart
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end
+        local d=input.Position-startInput
         main.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
-    end
-end)
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=false end
-end)
+    end)
+end
 
 local minimized=false
-minBtn.MouseButton1Click:Connect(function()
-    minimized=not minimized
-    side.Visible=not minimized
-    content.Visible=not minimized
-    main.Size=minimized and UDim2.fromOffset(590,66) or UDim2.fromOffset(590,380)
+mini.MouseButton1Click:Connect(function()
+    minimized=not minimized; side.Visible=not minimized; body.Visible=not minimized
+    main.Size=minimized and UDim2.fromOffset(640,70) or UDim2.fromOffset(640,410)
+    mini.Text=minimized and "+" or "—"
 end)
-closeBtn.MouseButton1Click:Connect(function()
-    gui.Enabled=false
-end)
+close.MouseButton1Click:Connect(function() gui.Enabled=false end)
 
-function LegendsUI:Notify(data)
-    local n=New("Frame",{
-        Size=UDim2.fromOffset(320,76),
-        Position=UDim2.new(1,-335,1,-90),
-        BackgroundColor3=Color3.fromRGB(19,21,29),
-        BorderSizePixel=0
-    },gui)
-    New("UICorner",{CornerRadius=UDim.new(0,11)},n)
-    New("UIStroke",{Color=Color3.fromRGB(62,58,88),Thickness=1},n)
-    local bar=New("Frame",{Size=UDim2.fromOffset(3,76),BackgroundColor3=Color3.fromRGB(112,82,255),BorderSizePixel=0},n)
-    New("UICorner",{CornerRadius=UDim.new(0,3)},bar)
-    label(n,data.Title or "LEGENDS HUB",22,Color3.fromRGB(240,241,248)).Position=UDim2.fromOffset(14,10)
-    local c=label(n,data.Content or "",35,Color3.fromRGB(150,155,172)); c.Position=UDim2.fromOffset(14,34); c.Font=Enum.Font.Gotham; c.TextSize=12
-    task.delay(data.Duration or 5,function()
-        if n.Parent then
-            TweenService:Create(n,TweenInfo.new(.2),{BackgroundTransparency=1}):Play()
-            task.wait(.2); n:Destroy()
+-- Compatibility object: the original script's WindUI:Notify calls continue to work.
+local WindUI={}
+function WindUI:Notify(data)
+    data=data or {}
+    local n=mk("Frame",{Size=UDim2.fromOffset(340,82),Position=UDim2.new(1,-360,1,-100),BackgroundColor3=Color3.fromRGB(19,22,31),BorderSizePixel=0},gui)
+    round(n,11); line(n,Color3.fromRGB(66,59,95),1,.05)
+    mk("Frame",{Size=UDim2.fromOffset(3,82),BackgroundColor3=Color3.fromRGB(118,91,255),BorderSizePixel=0},n)
+    txt(n,tostring(data.Title or "LEGENDS HUB"),UDim2.new(1,-28,0,24),UDim2.fromOffset(15,9),Enum.Font.GothamBold,Color3.fromRGB(242,243,249)).TextSize=13
+    txt(n,tostring(data.Content or ""),UDim2.new(1,-28,0,34),UDim2.fromOffset(15,37),Enum.Font.Gotham,Color3.fromRGB(155,160,176)).TextSize=11
+    local duration=tonumber(data.Duration) or 5
+    task.delay(duration,function()
+        if n and n.Parent then
+            local t=TweenService:Create(n,TweenInfo.new(.2),{BackgroundTransparency=1})
+            t:Play(); task.wait(.2); if n and n.Parent then n:Destroy() end
         end
     end)
 end
-
-local WindUI = LegendsUI
 --==================================================
--- END CUSTOM UI
+-- END LEGENDS HUB UI
 --==================================================
 getgenv().Config = {
     ["Auto Farming"] = true,
@@ -573,281 +464,6 @@ end)
 L_1_[43] = game:GetService("CoreGui")
 L_1_[6] = game:GetService("TweenService")
 L_1_[5] = game:GetService("Players")["LocalPlayer"]
-
--- ==================== NEW HUB UI (7-LINES FIX & UPDATE) ====================
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-local Lighting = game:GetService("Lighting")
-
--- กำหนดค่าโครงสร้างตัวแปรตามระบบของสคริปต์หลัก
-if not L_1_ then L_1_ = {} end
-if not L_1_[45] then L_1_[45] = {} end
-
-L_1_[5] = Players.LocalPlayer
-local player = L_1_[5]
-
--- เคลียร์ UI และ Blur ตัวเก่าออกก่อนเพื่อป้องกันการทับซ้อน
-if game:GetService("CoreGui"):FindFirstChild("Screengui") then
-    game:GetService("CoreGui").Screengui:Destroy()
-end
-if Lighting:FindFirstChild("MeowHubBlur") then
-    Lighting.MeowHubBlur:Destroy()
-end
-
--- ลบวัตถุตามเงื่อนไขของตัวระบบเดิม
-if L_1_[43] and L_1_[43]:FindFirstChild("Status_UI") then
-    L_1_[43]["Status_UI"]:Destroy()
-end
-
--- สร้างระบบคลังข้อความ UI ใหม่
-local Library = {}
-
-local ScreenGui = Instance.new('ScreenGui')
-ScreenGui.Name = "Screengui"
-ScreenGui.Parent = game:GetService('CoreGui')
-ScreenGui.Enabled = true
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true
-
--- สร้างรูปอวาตาร์ตัวละครผู้เล่น (สไตล์ใหม่)
-local Image = Instance.new('ImageLabel')
-Image.Name = 'Image'
-Image.Parent = ScreenGui
-Image.AnchorPoint = Vector2.new(0.5, 0.5)
-Image.Position = UDim2.new(0.5, 0, 0.24, 0) -- ขยับขึ้นเล็กน้อยเพื่อให้สมดุลกับ 7 บรรทัด
-Image.Size = UDim2.new(0, 59, 0, 59)
-Image.BackgroundTransparency = 1
-Image.BorderSizePixel = 0
-Image.Image = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-
-local Corner = Instance.new("UICorner")
-Corner.Parent = Image
-Corner.CornerRadius = UDim.new(1,0)
-
--- ฟังก์ชันดั้งเดิมสร้าง TextLabel ตรงจุดกลางจอ
-local function CreateTextLabel(text, position)
-    local Label = Instance.new('TextLabel')
-    Label.Name = "TextLine"
-    Label.Parent = ScreenGui
-    Label.AnchorPoint = Vector2.new(0.5, 0.5)
-    Label.Position = position
-    Label.Size = UDim2.new(0, 600, 0, 30)
-    Label.BackgroundTransparency = 0.999
-    Label.BorderSizePixel = 0
-    Label.Font = Enum.Font.FredokaOne
-    Label.Text = text
-    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Label.TextSize = 13
-    Label.RichText = true
-    
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Parent = Label
-    Stroke.Color = Color3.fromRGB(0, 0, 0)
-    Stroke.Thickness = 1
-    return Label
-end
-
--- จัดเรียงคีย์บอร์ดข้อความใหม่ทั้งหมด 7 แถว (แก้ไขปัญหารันชื่อแล้วบั๊กไม่ขึ้น)
-local textLines = {'NameHub', 'Task1', 'Task2', 'Currencies', 'Melees', 'DebugLine', 'Credit'}
-for i, v in pairs(textLines) do
-    Library[v] = CreateTextLabel("...", UDim2.new(0.5, 0, 0.30 + (.045 * i), 0))
-end
-
--- สร้างฉากหลัง Blur ตามข้อกำหนดใหม่
-local BlurEffect = Instance.new("BlurEffect")
-BlurEffect.Name = "MeowHubBlur"
-BlurEffect.Parent = Lighting
-BlurEffect.Size = 12
-
--- ฟังก์ชันกำหนดอัปเดตตัวหนังสือ
-local function SetText(name, text)
-    local Label = Library[name]
-    if Label and Label.Text ~= text then
-        Label.Text = text
-    end
-end
-
--- ตั้งค่าบรรทัดหัวข้อสคริปต์และผู้พัฒนาลงล็อกที่ถูกต้อง
-SetText("NameHub", "<font color='#3b82f6'>!!</font> Zeion HUB | Kaitun Script <font color='#3b82f6'>!!</font>")
-SetText("Credit", "<font color='#ef4444'>!!</font> Ui kaitun by i.m_dog <font color='#ef4444'>!!</font>")
-
--- ตัวแปรเก็บสะสมค่าเบื้องหลังสำหรับรวบรวมประกอบลงช่อง "Currencies"
-local currentStatus = "Farm"
-local currentLevel = 0
-local currentBeli = 0
-local currentFragments = 0
-local currentRace = "None"
-local currentRaceVersion = "V1"
-local currentFPS = 0
-local currentPing = "N/A"
-
--- ฟังก์ชันจัดรูปแบบเวลา
-local function formatTime(gameTime)
-    local h = math.floor(gameTime / 3600) % 24
-    local m = math.floor(gameTime / 60) % 60
-    local s = gameTime % 60
-    return string.format("%02d:%02d:%02d", h, m, s)
-end
-
-local function DispTime(seconds)
-    if math.floor(seconds / 86400) > 0 then return string.format("%dd %dh %dm %ds", math.floor(seconds / 86400), math.floor((seconds % 86400) / 3600), math.floor((seconds % 3600) / 60), seconds % 60) end
-    if math.floor((seconds % 86400) / 3600) > 0 then return string.format("%dh %dm %ds", math.floor((seconds % 86400) / 3600), math.floor((seconds % 3600) / 60), seconds % 60) end
-    if math.floor((seconds % 3600) / 60) > 0 then return string.format("%dm %ds", math.floor((seconds % 3600) / 60), seconds % 60) end
-    return string.format("%ds", seconds % 60)
-end
-
--- ฟังก์ชันที่ทำการวาดค่าชุดข้อมูลลง UI ทุกครั้งเมื่อมีสิ่งใดเปลี่ยนแปลง
-local function refreshDisplay()
-    pcall(function()
-        -- 1. บรรทัดข้อมูลสถานะหลัก
-        SetText("Task1", "MainStatus : <font color='#a855f7'>" .. currentStatus .. "</font>")
-        
-        -- 2. บรรทัดเก็บรายละเอียดผลปีศาจ
-        local dfValue = player.Data.DevilFruit.Value
-        local dfText = (dfValue == "" or dfValue == "None") and "None" or dfValue
-        SetText("Task2", "Devil Fruit : <font color='#f43f5e'>" .. dfText .. "</font>")
-
-        -- 3. บรรทัดจัดเก็บข้อมูลเงิน เลเวล เศษแก้ว และเผ่า (V1-V4)
-        local formattedBeli = ""
-        if currentBeli >= 1e9 then formattedBeli = string.format("%.2fB", currentBeli/1e9)
-        elseif currentBeli >= 1e6 then formattedBeli = string.format("%.1fM", currentBeli/1e6)
-        elseif currentBeli >= 1e3 then formattedBeli = string.format("%.1fK", currentBeli/1e3)
-        else formattedBeli = tostring(currentBeli) end
-
-        SetText("Currencies", "<font color='#a855f7'>Fragments</font>: " .. currentFragments .. "  |  <font color='#facc15'>Beli</font>: " .. formattedBeli .. "  |  <font color='#22c55e'>Lv</font>: " .. currentLevel .. "  |  <font color='#3b82f6'>Race</font>: " .. currentRace .. " (" .. currentRaceVersion .. ")")
-        
-        -- 4. บรรทัดค่าประสิทธิภาพเน็ตเวิร์คและเฟรมเรต
-        SetText("Melees", "FPS: <font color='#22c55e'>" .. currentFPS .. "</font>  |  Ping: <font color='#ec4899'>" .. currentPing .. "</font>")
-    end)
-end
-
--- ==================== FUNCTIONS FOR EVENTS ====================
-local function updateLevel()
-    if player.Data:FindFirstChild("Level") then
-        currentLevel = player.Data.Level.Value
-        refreshDisplay()
-    end
-end
-
-local function updateBeli()
-    if player.Data:FindFirstChild("Beli") then
-        currentBeli = player.Data.Beli.Value
-        refreshDisplay()
-    end
-end
-
-local function updateFragments()
-    if player.Data:FindFirstChild("Fragments") then
-        currentFragments = player.Data.Fragments.Value
-        refreshDisplay()
-    end
-end
-
--- ฟังก์ชันตรวจสอบ เผ่า และ ขั้นของเผ่า (V1 / V2 / V3 / V4)
-local function updateRace()
-    pcall(function()
-        if player.Data:FindFirstChild("Race") then
-            currentRace = player.Data.Race.Value
-        end
-        
-        if player.Backpack:FindFirstChild("Awakening") or player.Character:FindFirstChild("Awakening") then
-            currentRaceVersion = "V4"
-        elseif player.Data:FindFirstChild("RaceVersion") then
-            currentRaceVersion = "V" .. tostring(player.Data.RaceVersion.Value)
-        elseif player.Data:FindFirstChild("Progress") and player.Data.Progress.Value >= 4 then
-            currentRaceVersion = "V3"
-        elseif player.Data:FindFirstChild("Progress") and player.Data.Progress.Value >= 2 then
-            currentRaceVersion = "V2"
-        else
-            currentRaceVersion = "V1"
-        end
-        refreshDisplay()
-    end)
-end
-
-local function updateDevilFruits()
-    refreshDisplay()
-end
-
-local function updateTime()
-    local gameTime = math.floor(workspace.DistributedGameTime + 0.5)
-    SetText("DebugLine", "Game Time: " .. formatTime(gameTime) .. " (" .. DispTime(gameTime) .. ")")
-end
-
--- ==================== CONNECTING EVENTS ====================
-if player.Data:FindFirstChild("Level") then
-    player.Data.Level:GetPropertyChangedSignal("Value"):Connect(updateLevel)
-end
-
-if player.Data:FindFirstChild("Beli") then
-    player.Data.Beli:GetPropertyChangedSignal("Value"):Connect(updateBeli)
-end
-
-if player.Data:FindFirstChild("Fragments") then
-    player.Data.Fragments:GetPropertyChangedSignal("Value"):Connect(updateFragments)
-end
-
-if player.Data:FindFirstChild("DevilFruit") then
-    player.Data.DevilFruit:GetPropertyChangedSignal("Value"):Connect(updateDevilFruits)
-end
-
-if player.Data:FindFirstChild("Race") then
-    player.Data.Race:GetPropertyChangedSignal("Value"):Connect(updateRace)
-end
-if player.Data:FindFirstChild("RaceVersion") then
-    player.Data.RaceVersion:GetPropertyChangedSignal("Value"):Connect(updateRace)
-elseif player.Data:FindFirstChild("Progress") then
-    player.Data.Progress:GetPropertyChangedSignal("Value"):Connect(updateRace)
-end
-
--- ตัวจัดการลูปคำนวณเวลา, FPS และค่าปิง
-local frames, lastTick = 0, tick()
-RunService.RenderStepped:Connect(function()
-    frames = frames + 1
-    if tick() - lastTick >= 1 then
-        currentFPS = frames
-        frames = 0
-        lastTick = tick()
-        refreshDisplay()
-    end
-end)
-
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            currentPing = (pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValueString() end) and Stats.Network.ServerStatsItem["Data Ping"]:GetValueString() or "N/A")
-            updateTime()
-            updateRace()
-        end)
-    end
-end)
-
--- ==================== COMPATIBILITY OVERRIDE ====================
-local oldStatusFunc = L_1_[45]["Status"]
-L_1_[45]["Status"] = function(newStatus)
-    currentStatus = tostring(newStatus)
-    
-    if L_1_[26] then
-        L_1_[26]["Text"] = "Status: " .. currentStatus
-    end
-    
-    refreshDisplay()
-    
-    if oldStatusFunc then
-        oldStatusFunc(newStatus)
-    end
-end
-
--- สั่งเริ่มดึงและวาดค่าเริ่มต้นในครั้งแรกทันทีที่รัน
-pcall(updateLevel)
-pcall(updateBeli)
-pcall(updateFragments)
-pcall(updateDevilFruits)
-pcall(updateRace)
-pcall(updateTime)
-
-print("✅  [System] แก้ไขบั๊กคีย์ข้อความหลุด และปรับหน้าจอรองรับ 7 แถวสมบูรณ์แล้ว!")
 
 -- World check
 if L_1_[30] == 2753915549 or L_1_[30] == 85211729168715 then
@@ -6104,7 +5720,7 @@ task["spawn"](function()
 							L_1_[45]["wt"](.5)
 							if not L_1_[45]["ffc"](L_1_[40], "Saber Expert") then
 WindUI:Notify({
-    Title = "LEGENDS HUB",
+    Title = "the_real_Panda Hub",
     Content = "Hopping...",
     Duration = 8,
     Icon = "rbxassetid://122444592900332",
