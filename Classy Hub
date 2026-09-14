@@ -1,244 +1,246 @@
 -- ================================================
--- Blox Fruits Auto Farm v1.0
--- Context: Roblox client-side Lua (executed via exploit executor)
--- Target: Blox Fruits (any sea)
--- Arch: Client-side memory/game object manipulation
+-- Blox Fruits Auto Farm — Full Dashboard UI
+-- Context: Roblox client-side Lua (exploit executor)
+-- UI Lib: Rayfield
+-- Tabs: Farm | Stats | Fruit | Settings
 -- ================================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
+-- ================================================
+-- LOAD RAYFIELD
+-- ================================================
+local Rayfield = loadstring(game:HttpGet(
+    "https://sirius.menu/rayfield"
+))()
+
+-- ================================================
+-- SERVICES
+-- ================================================
+local Players         = game:GetService("Players")
+local RunService      = game:GetService("RunService")
+local UserInputService= game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
+local Workspace       = game:GetService("Workspace")
+local Stats           = game:GetService("Stats")
 
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Humanoid = Character:WaitForChild("Humanoid")
 
 -- ================================================
--- CONFIG (edit these)
+-- CONFIG STATE
 -- ================================================
 local CONFIG = {
-    AutoFarm       = true,
-    AutoMobs       = true,
+    -- Farm
+    AutoFarm         = false,
+    AutoMobs         = true,
     AutoCollectFruit = true,
-    AutoQuest      = true,
-    WalkSpeed      = 50,        -- default 16
-    JumpPower      = 100,
-    FarmRadius     = 150,       -- studs radius to detect mobs
-    TeleportOffset = Vector3.new(0, 3, 0),
-    AttackDelay    = 0.1,       -- seconds between attacks
-    RespawnDelay   = 2.0,
-    TargetMobs     = {},        -- empty = all mobs, fill with names to whitelist
-    BlacklistMobs  = {"Dummy"}, -- mobs to ignore
+    AutoQuest        = true,
+    FarmRadius       = 150,
+    AttackDelay      = 0.1,
+    RespawnDelay     = 2.0,
+    -- Stats
+    AutoAllocStats   = false,
+    StatPriority     = "Melee", -- Melee | Defense | Sword | Gun | Fruit
+    -- Settings
+    WalkSpeed        = 50,
+    JumpPower        = 100,
+    AntiAFK          = true,
+    ESP              = false,
+    TargetMobs       = {},
+    BlacklistMobs    = {"Dummy"},
 }
+
+-- Runtime
+local farmConnection  = nil
+local antiAFKConn     = nil
+local espObjects      = {}
 
 -- ================================================
 -- UTILITIES
 -- ================================================
-
-local function getCharacter()
-    return LocalPlayer.Character
+local function getChar()   return LocalPlayer.Character end
+local function getRoot()
+    local c = getChar()
+    return c and c:FindFirstChild("HumanoidRootPart")
 end
-
-local function getRootPart()
-    local char = getCharacter()
-    if char then return char:FindFirstChild("HumanoidRootPart") end
+local function getHum()
+    local c = getChar()
+    return c and c:FindFirstChildOfClass("Humanoid")
 end
-
-local function getHumanoid()
-    local char = getCharacter()
-    if char then return char:FindFirstChildOfClass("Humanoid") end
-end
-
 local function isAlive()
-    local hum = getHumanoid()
-    return hum and hum.Health > 0
+    local h = getHum()
+    return h and h.Health > 0
 end
-
-local function teleportTo(position)
-    local root = getRootPart()
-    if root then
-        root.CFrame = CFrame.new(position + CONFIG.TeleportOffset)
-    end
-end
-
 local function distanceTo(pos)
-    local root = getRootPart()
-    if root then
-        return (root.Position - pos).Magnitude
-    end
-    return math.huge
+    local r = getRoot()
+    return r and (r.Position - pos).Magnitude or math.huge
 end
-
+local function teleportTo(pos)
+    local r = getRoot()
+    if r then r.CFrame = CFrame.new(pos + Vector3.new(0,3,0)) end
+end
 local function setStats()
-    local hum = getHumanoid()
-    if hum then
-        hum.WalkSpeed = CONFIG.WalkSpeed
-        hum.JumpPower = CONFIG.JumpPower
+    local h = getHum()
+    if h then
+        h.WalkSpeed = CONFIG.WalkSpeed
+        h.JumpPower = CONFIG.JumpPower
     end
 end
 
 -- ================================================
 -- MOB DETECTION
 -- ================================================
-
 local function isValidMob(model)
-    -- Must have humanoid and humanoidrootpart
     if not model:FindFirstChildOfClass("Humanoid") then return false end
     if not model:FindFirstChild("HumanoidRootPart") then return false end
-
     local hum = model:FindFirstChildOfClass("Humanoid")
     if hum.Health <= 0 then return false end
-
-    -- Not the local player
     if model.Name == LocalPlayer.Name then return false end
-
-    -- Not a player
-    for _, v in ipairs(Players:GetPlayers()) do
-        if v.Character == model then return false end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character == model then return false end
     end
-
-    -- Blacklist check
-    for _, blacklisted in ipairs(CONFIG.BlacklistMobs) do
-        if model.Name == blacklisted then return false end
+    for _, b in ipairs(CONFIG.BlacklistMobs) do
+        if model.Name == b then return false end
     end
-
-    -- Whitelist check (if populated)
-    if #CONFIG.TargetMobs > 0 then
-        local found = false
-        for _, allowed in ipairs(CONFIG.TargetMobs) do
-            if model.Name:lower():find(allowed:lower()) then
-                found = true
-                break
-            end
-        end
-        if not found then return false end
-    end
-
     return true
 end
 
 local function getNearestMob()
-    local nearest = nil
-    local nearestDist = math.huge
-    local root = getRootPart()
+    local nearest, nearDist = nil, math.huge
+    local root = getRoot()
     if not root then return nil end
-
-    for _, model in ipairs(Workspace:GetDescendants()) do
-        if model:IsA("Model") and isValidMob(model) then
-            local mobRoot = model:FindFirstChild("HumanoidRootPart")
-            if mobRoot then
-                local dist = (root.Position - mobRoot.Position).Magnitude
-                if dist < nearestDist and dist <= CONFIG.FarmRadius then
-                    nearest = model
-                    nearestDist = dist
+    for _, m in ipairs(Workspace:GetDescendants()) do
+        if m:IsA("Model") and isValidMob(m) then
+            local mr = m:FindFirstChild("HumanoidRootPart")
+            if mr then
+                local d = (root.Position - mr.Position).Magnitude
+                if d < nearDist and d <= CONFIG.FarmRadius then
+                    nearest, nearDist = m, d
                 end
             end
         end
     end
-
     return nearest
 end
 
 -- ================================================
--- AUTO ATTACK
+-- COMBAT
 -- ================================================
-
-local function clickMob(mob)
-    -- Simulate click on mob using mouse service
-    -- Works on most executors that support mouse1click
-    local mouse = LocalPlayer:GetMouse()
-    if mouse and mob then
-        local mobRoot = mob:FindFirstChild("HumanoidRootPart")
-        if mobRoot then
-            -- Move camera target
-            local cam = Workspace.CurrentCamera
-            cam.CFrame = CFrame.new(cam.CFrame.Position, mobRoot.Position)
-            mouse.Target = mobRoot
-            -- Trigger click
-            fireclickdetector(mobRoot) -- works on some executors
-        end
-    end
-end
-
-local function useEquippedTool(mob)
-    -- Use currently equipped tool (sword/gun)
-    local char = getCharacter()
+local function attackMob(mob)
+    local mobRoot = mob:FindFirstChild("HumanoidRootPart")
+    if not mobRoot then return end
+    local char = getChar()
     if not char then return end
     local tool = char:FindFirstChildOfClass("Tool")
     if tool then
-        local activateEvent = tool:FindFirstChildOfClass("RemoteEvent")
-            or tool:FindFirstChild("RemoteEvent")
-        -- Try to fire tool activation
-        if tool.Handle then
-            -- Simulate activation
-            local event = tool:FindFirstChild("Activated")
-            if event then event:Fire() end
-        end
-        -- Executor-level simulation
-        pcall(function()
-            tool:Activate()
-        end)
+        pcall(function() tool:Activate() end)
     end
+    pcall(function() fireclickdetector(mobRoot) end)
+    pcall(function()
+        firetouchinterest(getRoot(), mobRoot, 0)
+        task.wait(0.05)
+        firetouchinterest(getRoot(), mobRoot, 1)
+    end)
 end
 
 -- ================================================
 -- AUTO QUEST
 -- ================================================
-
 local function acceptQuest()
-    -- Attempt to auto-accept nearest quest NPC
-    -- Blox Fruits uses RemoteEvents for quest acceptance
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
         or ReplicatedStorage:FindFirstChild("Events")
     if not remotes then return end
-
-    -- Common quest remote name patterns in Blox Fruits
-    local questRemotes = {
-        "startQuest",
-        "StartQuest",
-        "AcceptQuest",
-        "QuestStart"
-    }
-
-    for _, remoteName in ipairs(questRemotes) do
-        local remote = remotes:FindFirstChild(remoteName)
-        if remote and remote:IsA("RemoteEvent") then
-            pcall(function()
-                remote:FireServer()
-            end)
+    for _, name in ipairs({"startQuest","StartQuest","AcceptQuest","QuestStart"}) do
+        local r = remotes:FindFirstChild(name)
+        if r and r:IsA("RemoteEvent") then
+            pcall(function() r:FireServer() end)
         end
     end
 end
 
 -- ================================================
--- AUTO FRUIT COLLECT
+-- FRUIT COLLECT
 -- ================================================
-
-local function collectNearbyFruits()
+local function collectFruits()
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        -- Blox Fruits on map typically named with "Fruit" or specific fruit names
         if obj:IsA("Model") and (
             obj.Name:lower():find("fruit") or
             obj.Name:lower():find("devil")
         ) then
             local part = obj:FindFirstChildOfClass("BasePart")
-                or obj:FindFirstChild("Handle")
-            if part then
-                local dist = distanceTo(part.Position)
-                if dist < 30 then
-                    -- Teleport to fruit and attempt pickup
-                    teleportTo(part.Position)
-                    task.wait(0.3)
-                    -- Fire any touch events
-                    pcall(function()
-                        firetouchinterest(getRootPart(), part, 0)
-                        task.wait(0.1)
-                        firetouchinterest(getRootPart(), part, 1)
-                    end)
-                end
+                      or obj:FindFirstChild("Handle")
+            if part and distanceTo(part.Position) < 30 then
+                teleportTo(part.Position)
+                task.wait(0.3)
+                pcall(function()
+                    firetouchinterest(getRoot(), part, 0)
+                    task.wait(0.1)
+                    firetouchinterest(getRoot(), part, 1)
+                end)
+            end
+        end
+    end
+end
+
+-- ================================================
+-- AUTO STAT ALLOCATION
+-- ================================================
+local statMap = {
+    Melee   = "STR",
+    Defense = "DEF",
+    Sword   = "SWD",
+    Gun     = "GUN",
+    Fruit   = "DF",
+}
+local function allocateStat()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then return end
+    local addStat = remotes:FindFirstChild("AddStat")
+        or remotes:FindFirstChild("StatAdd")
+    if addStat then
+        pcall(function()
+            addStat:FireServer(statMap[CONFIG.StatPriority] or "STR")
+        end)
+    end
+end
+
+-- ================================================
+-- ANTI-AFK
+-- ================================================
+local function startAntiAFK()
+    if antiAFKConn then antiAFKConn:Disconnect() end
+    antiAFKConn = RunService.Heartbeat:Connect(function()
+        if not CONFIG.AntiAFK then return end
+        -- Virtual input to prevent kick
+        pcall(function()
+            local VIM = game:GetService("VirtualInputManager")
+            VIM:SendKeyEvent(true,  "W", false, game)
+            VIM:SendKeyEvent(false, "W", false, game)
+        end)
+    end)
+end
+
+-- ================================================
+-- ESP
+-- ================================================
+local function clearESP()
+    for _, v in ipairs(espObjects) do
+        pcall(function() v:Destroy() end)
+    end
+    espObjects = {}
+end
+
+local function drawESP()
+    clearESP()
+    for _, model in ipairs(Workspace:GetDescendants()) do
+        if model:IsA("Model") and isValidMob(model) then
+            local mr = model:FindFirstChild("HumanoidRootPart")
+            if mr then
+                local box = Instance.new("SelectionBox")
+                box.Adornee = model
+                box.Color3 = Color3.fromRGB(255, 50, 50)
+                box.LineThickness = 0.05
+                box.SurfaceTransparency = 0.7
+                box.Parent = Workspace
+                table.insert(espObjects, box)
             end
         end
     end
@@ -247,101 +249,341 @@ end
 -- ================================================
 -- MAIN FARM LOOP
 -- ================================================
-
-local farmConnection
 local function startFarm()
-    if farmConnection then
-        farmConnection:Disconnect()
-    end
-
+    if farmConnection then farmConnection:Disconnect() end
     farmConnection = RunService.Heartbeat:Connect(function()
         if not CONFIG.AutoFarm then return end
-        if not isAlive() then
-            task.wait(CONFIG.RespawnDelay)
-            return
-        end
-
+        if not isAlive() then task.wait(CONFIG.RespawnDelay) return end
         setStats()
-
-        -- Auto collect fruits
-        if CONFIG.AutoCollectFruit then
-            collectNearbyFruits()
-        end
-
-        -- Auto quest
-        if CONFIG.AutoQuest then
-            acceptQuest()
-        end
-
-        -- Find and attack nearest mob
+        if CONFIG.AutoCollectFruit then collectFruits() end
+        if CONFIG.AutoQuest        then acceptQuest()    end
+        if CONFIG.AutoAllocStats   then allocateStat()   end
         if CONFIG.AutoMobs then
             local mob = getNearestMob()
             if mob then
-                local mobRoot = mob:FindFirstChild("HumanoidRootPart")
-                if mobRoot then
-                    -- Teleport close to mob
-                    teleportTo(mobRoot.Position)
+                local mr = mob:FindFirstChild("HumanoidRootPart")
+                if mr then
+                    teleportTo(mr.Position)
                     task.wait(CONFIG.AttackDelay)
-                    -- Attack sequence
-                    clickMob(mob)
-                    useEquippedTool(mob)
+                    attackMob(mob)
                     task.wait(CONFIG.AttackDelay)
                 end
             else
-                -- No mob in radius, wait
                 task.wait(0.5)
             end
         end
     end)
-
-    print("[AutoFarm] Started 💀")
 end
 
 local function stopFarm()
     if farmConnection then
         farmConnection:Disconnect()
         farmConnection = nil
-        print("[AutoFarm] Stopped ✌️")
     end
 end
 
 -- ================================================
--- CHARACTER RESPAWN HANDLER
+-- RESPAWN HANDLER
 -- ================================================
-
 LocalPlayer.CharacterAdded:Connect(function(newChar)
-    Character = newChar
-    HumanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
-    Humanoid = newChar:WaitForChild("Humanoid")
     task.wait(CONFIG.RespawnDelay)
-    if CONFIG.AutoFarm then
-        startFarm()
-    end
+    if CONFIG.AutoFarm then startFarm() end
 end)
 
 -- ================================================
--- SIMPLE TOGGLE UI (optional, key bind)
+-- BUILD RAYFIELD WINDOW
 -- ================================================
+local Window = Rayfield:CreateWindow({
+    Name             = "🍎 Blox Fruits AutoFarm",
+    LoadingTitle     = "BloxFarm Suite",
+    LoadingSubtitle  = "by brody 💀",
+    ConfigurationSaving = {
+        Enabled  = true,
+        FileName = "BloxFarmConfig",
+    },
+    Discord = {
+        Enabled = false,
+    },
+    KeySystem = false,
+})
 
-local UserInputService = game:GetService("UserInputService")
+-- ================================================
+-- TAB: FARM
+-- ================================================
+local FarmTab = Window:CreateTab("🗡️ Farm", 4483362458)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    -- Press F to toggle farm on/off
-    if input.KeyCode == Enum.KeyCode.F then
-        CONFIG.AutoFarm = not CONFIG.AutoFarm
-        if CONFIG.AutoFarm then
-            startFarm()
+FarmTab:CreateToggle({
+    Name         = "Auto Farm",
+    CurrentValue = false,
+    Flag         = "AutoFarm",
+    Callback     = function(val)
+        CONFIG.AutoFarm = val
+        if val then startFarm() else stopFarm() end
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Kill Mobs",
+    CurrentValue = true,
+    Flag         = "AutoMobs",
+    Callback     = function(val)
+        CONFIG.AutoMobs = val
+    end,
+})
+
+FarmTab:CreateToggle({
+    Name         = "Auto Quest",
+    CurrentValue = true,
+    Flag         = "AutoQuest",
+    Callback     = function(val)
+        CONFIG.AutoQuest = val
+    end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Farm Radius (studs)",
+    Range        = {50, 500},
+    Increment    = 10,
+    Suffix       = " studs",
+    CurrentValue = 150,
+    Flag         = "FarmRadius",
+    Callback     = function(val)
+        CONFIG.FarmRadius = val
+    end,
+})
+
+FarmTab:CreateSlider({
+    Name         = "Attack Delay (ms)",
+    Range        = {50, 1000},
+    Increment    = 50,
+    Suffix       = " ms",
+    CurrentValue = 100,
+    Flag         = "AttackDelay",
+    Callback     = function(val)
+        CONFIG.AttackDelay = val / 1000
+    end,
+})
+
+FarmTab:CreateButton({
+    Name     = "Teleport to Nearest Mob",
+    Callback = function()
+        local mob = getNearestMob()
+        if mob then
+            local mr = mob:FindFirstChild("HumanoidRootPart")
+            if mr then teleportTo(mr.Position) end
+            Rayfield:Notify({
+                Title   = "Teleported 💀",
+                Content = "Jumped to: " .. mob.Name,
+                Duration = 3,
+            })
         else
-            stopFarm()
+            Rayfield:Notify({
+                Title   = "No Mob Found 😭",
+                Content = "Nothing in radius",
+                Duration = 3,
+            })
         end
-        print("[AutoFarm] Toggled:", CONFIG.AutoFarm)
-    end
+    end,
+})
+
+-- ================================================
+-- TAB: STATS
+-- ================================================
+local StatsTab = Window:CreateTab("📊 Stats", 4483362458)
+
+StatsTab:CreateToggle({
+    Name         = "Auto Allocate Stats",
+    CurrentValue = false,
+    Flag         = "AutoAllocStats",
+    Callback     = function(val)
+        CONFIG.AutoAllocStats = val
+    end,
+})
+
+StatsTab:CreateDropdown({
+    Name    = "Stat Priority",
+    Options = {"Melee", "Defense", "Sword", "Gun", "Fruit"},
+    CurrentOption = {"Melee"},
+    Flag    = "StatPriority",
+    Callback = function(val)
+        CONFIG.StatPriority = val[1] or "Melee"
+    end,
+})
+
+StatsTab:CreateButton({
+    Name     = "Allocate Stat Now",
+    Callback = function()
+        allocateStat()
+        Rayfield:Notify({
+            Title   = "Stat Allocated ✌️",
+            Content = "Pumped: " .. CONFIG.StatPriority,
+            Duration = 3,
+        })
+    end,
+})
+
+-- Live stat display
+StatsTab:CreateLabel("── Live Info ──")
+
+local pingLabel = StatsTab:CreateLabel("Ping: ...")
+local hpLabel   = StatsTab:CreateLabel("HP: ...")
+
+RunService.Heartbeat:Connect(function()
+    local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+    local hum  = getHum()
+    local hp   = hum and math.floor(hum.Health) or 0
+    local maxhp= hum and math.floor(hum.MaxHealth) or 0
+    pcall(function()
+        pingLabel:Set("Ping: " .. ping .. " ms")
+        hpLabel:Set("HP: " .. hp .. " / " .. maxhp)
+    end)
 end)
+
+-- ================================================
+-- TAB: FRUIT
+-- ================================================
+local FruitTab = Window:CreateTab("🍍 Fruit", 4483362458)
+
+FruitTab:CreateToggle({
+    Name         = "Auto Collect Fruits",
+    CurrentValue = true,
+    Flag         = "AutoCollectFruit",
+    Callback     = function(val)
+        CONFIG.AutoCollectFruit = val
+    end,
+})
+
+FruitTab:CreateButton({
+    Name     = "Scan & Collect Now",
+    Callback = function()
+        collectFruits()
+        Rayfield:Notify({
+            Title   = "Fruit Scan Done 😩",
+            Content = "Attempted to collect nearby fruits",
+            Duration = 3,
+        })
+    end,
+})
+
+FruitTab:CreateButton({
+    Name     = "List Fruits in Workspace",
+    Callback = function()
+        local found = {}
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") and (
+                obj.Name:lower():find("fruit") or
+                obj.Name:lower():find("devil")
+            ) then
+                table.insert(found, obj.Name)
+            end
+        end
+        local msg = #found > 0
+            and table.concat(found, ", ")
+            or  "No fruits found 😭"
+        Rayfield:Notify({
+            Title   = "Fruits Found: " .. #found,
+            Content = msg,
+            Duration = 6,
+        })
+    end,
+})
+
+-- ================================================
+-- TAB: SETTINGS
+-- ================================================
+local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
+
+SettingsTab:CreateSlider({
+    Name         = "Walk Speed",
+    Range        = {16, 250},
+    Increment    = 1,
+    Suffix       = "",
+    CurrentValue = 50,
+    Flag         = "WalkSpeed",
+    Callback     = function(val)
+        CONFIG.WalkSpeed = val
+        setStats()
+    end,
+})
+
+SettingsTab:CreateSlider({
+    Name         = "Jump Power",
+    Range        = {50, 500},
+    Increment    = 10,
+    Suffix       = "",
+    CurrentValue = 100,
+    Flag         = "JumpPower",
+    Callback     = function(val)
+        CONFIG.JumpPower = val
+        setStats()
+    end,
+})
+
+SettingsTab:CreateToggle({
+    Name         = "Anti-AFK",
+    CurrentValue = true,
+    Flag         = "AntiAFK",
+    Callback     = function(val)
+        CONFIG.AntiAFK = val
+    end,
+})
+
+SettingsTab:CreateToggle({
+    Name         = "Mob ESP (Selection Box)",
+    CurrentValue = false,
+    Flag         = "ESP",
+    Callback     = function(val)
+        CONFIG.ESP = val
+        if val then
+            -- Refresh ESP every 3s
+            task.spawn(function()
+                while CONFIG.ESP do
+                    drawESP()
+                    task.wait(3)
+                end
+                clearESP()
+            end)
+        else
+            clearESP()
+        end
+    end,
+})
+
+SettingsTab:CreateButton({
+    Name     = "Reset Config",
+    Callback = function()
+        CONFIG.WalkSpeed  = 50
+        CONFIG.JumpPower  = 100
+        CONFIG.FarmRadius = 150
+        CONFIG.AttackDelay = 0.1
+        setStats()
+        Rayfield:Notify({
+            Title   = "Config Reset 🤨",
+            Content = "All settings back to default",
+            Duration = 3,
+        })
+    end,
+})
+
+SettingsTab:CreateButton({
+    Name     = "Destroy GUI",
+    Callback = function()
+        stopFarm()
+        clearESP()
+        Rayfield:Destroy()
+    end,
+})
 
 -- ================================================
 -- INIT
 -- ================================================
+startAntiAFK()
+setStats()
 
-print("[AutoFarm] Loaded — Press F to toggle 😩")
-startFarm()
+Rayfield:Notify({
+    Title   = "BloxFarm Loaded 💀",
+    Content = "Go to Farm tab and toggle Auto Farm ✌️",
+    Duration = 5,
+})
+
+print("[BloxFarm] Dashboard ready — Rayfield UI live 😭")
