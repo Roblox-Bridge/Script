@@ -1,62 +1,182 @@
 -- ================================================
--- Blox Fruits Auto Farm — Full Dashboard UI
--- Context: Roblox client-side Lua (exploit executor)
--- UI Lib: Rayfield
--- Tabs: Farm | Stats | Fruit | Settings
+-- Blox Fruits AutoFarm v3.0 — FULLY FIXED
+-- Delta Executor Compatible (No HttpGet, Pure CoreGui)
+-- Mobile Optimized — NO PC controls change
+-- Smart NPC filtering — only combat mobs
+-- Level-based quest system
+-- Bring NPCs + hover attack system
 -- ================================================
 
--- ================================================
--- LOAD RAYFIELD
--- ================================================
-local Rayfield = loadstring(game:HttpGet(
-    "https://sirius.menu/rayfield"
-))()
-
--- ================================================
--- SERVICES
--- ================================================
-local Players         = game:GetService("Players")
-local RunService      = game:GetService("RunService")
-local UserInputService= game:GetService("UserInputService")
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local TweenService      = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace       = game:GetService("Workspace")
-local Stats           = game:GetService("Stats")
+local Workspace         = game:GetService("Workspace")
+local CoreGui           = game:GetService("CoreGui")
+local HttpService       = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
+
+-- ================================================
+-- KNOWN NON-COMBAT NPC NAMES (filter list)
+-- Research based — all vendor/quest giver names
+-- ================================================
+local NON_COMBAT_NPCS = {
+    -- Boat dealers
+    ["Boat Dealer"] = true,
+    ["Luxury Boat Dealer"] = true,
+    -- Weapon/sword dealers
+    ["Sword Dealer"] = true,
+    ["Sword Dealer of the West"] = true,
+    ["Sword Dealer of the East"] = true,
+    ["Advanced Weapon Dealer"] = true,
+    ["Master Sword Dealer"] = true,
+    ["Weapon Dealer"] = true,
+    ["Legendary Sword Dealer"] = true,
+    -- Fruit dealers
+    ["Blox Fruit Dealer"] = true,
+    ["Blox Fruits Dealer Cousin"] = true,
+    -- Recruiters
+    ["Marine Recruiter"] = true,
+    ["Pirate Recruiter"] = true,
+    -- Quest givers / story NPCs
+    ["Military Detective"] = true,
+    ["Experienced Captain"] = true,
+    ["Sick Man"] = true,
+    ["Rich Man"] = true,
+    ["Hasan"] = true,
+    ["Parlus"] = true,
+    ["Living Skeleton"] = true,
+    ["Fruit Remover"] = true,
+    ["Mad Scientist"] = true,
+    ["Mysterious Scientist"] = true,
+    ["Arithmetic"] = true,
+    ["Guashiem"] = true,
+    ["El Admin"] = true,
+    ["El Rodolfo"] = true,
+    ["El Perro"] = true,
+    ["Experimic"] = true,
+    ["Phoeyu the Reformed"] = true,
+    ["Daigrock the Sharkman"] = true,
+    ["Death King"] = true,
+    ["Uzoth"] = true,
+    ["Gravestone"] = true,
+    ["Citizen"] = true,
+    ["Horned Man"] = true,
+    ["Hungry Man"] = true,
+    ["Previous Hero"] = true,
+    ["The Master of Aura"] = true,
+    ["Master of Auras"] = true,
+    ["Aura Editor"] = true,
+    ["Robot Mega"] = true,
+    ["Water Kung Fu Teacher"] = true,
+    ["Ability Teacher"] = true,
+    ["Instinct Teacher"] = true,
+    ["Martial Arts Master"] = true,
+    ["Alchemist"] = true,
+    ["Rip_Indra"] = true,
+    ["Crew Captain"] = true,
+    ["King Red Head"] = true,
+    ["Mr. Captain"] = true,
+    ["Nerd"] = true,
+    ["Tort"] = true,
+    ["Manager"] = true,
+    ["Customer"] = true,
+    ["Titles Specialist"] = true,
+    ["Awakenings Expert"] = true,
+    ["Colours Specialist"] = true,
+    ["Bounty Expert"] = true,
+    ["Honor Expert"] = true,
+    ["Player Hunter"] = true,
+    ["Elite Hunter"] = true,
+    ["Tacomura"] = true,
+    ["Lunoven"] = true,
+    ["Plokster"] = true,
+    ["Butler"] = true,
+    ["Erin"] = true,
+    ["Sabi"] = true,
+    ["The Strongest God"] = true,
+    ["Home Point"] = true,
+    ["Dark Step Teacher"] = true,
+    ["Swan"] = false, -- Swan IS a boss mob, keep it
+}
+
+-- ================================================
+-- LEVEL-BASED QUEST & MOB DATABASE
+-- ================================================
+local QUEST_DATA = {
+    -- FIRST SEA
+    [1]   = { island="Starter Island",    mobs={"Bandit","Trainee"},                         minLv=1,   maxLv=14  },
+    [2]   = { island="Jungle",            mobs={"Monkey","Gorilla"},                          minLv=15,  maxLv=59  },
+    [3]   = { island="Pirate Village",    mobs={"Pirate","Brute"},                            minLv=30,  maxLv=89  },
+    [4]   = { island="Desert",            mobs={"Desert Bandit","Desert Officer"},            minLv=60,  maxLv=119 },
+    [5]   = { island="Frozen Village",    mobs={"Snow Bandit","Snowman"},                     minLv=90,  maxLv=149 },
+    [6]   = { island="Marine Fortress",   mobs={"Chief Petty Officer","Vice Admiral"},        minLv=120, maxLv=189 },
+    [7]   = { island="Skylands",          mobs={"Sky Bandit","Dark Master"},                  minLv=150, maxLv=224 },
+    [8]   = { island="Prison",            mobs={"Prisoner","Dangerous Prisoner"},             minLv=190, maxLv=274 },
+    [9]   = { island="Colosseum",         mobs={"Toga Warrior","Gladiator"},                  minLv=225, maxLv=299 },
+    [10]  = { island="Magma Village",     mobs={"Military Soldier","Military Spy"},           minLv=300, maxLv=374 },
+    [11]  = { island="Underwater City",   mobs={"Fishman Warrior","Fishman Commando"},        minLv=375, maxLv=449 },
+    [12]  = { island="Skylands Upper",    mobs={"God's Guard","Shanda","Royal Squad"},        minLv=450, maxLv=624 },
+    [13]  = { island="Fountain City",     mobs={"Galley Pirate","Galley Captain"},            minLv=625, maxLv=699 },
+    -- SECOND SEA
+    [14]  = { island="Kingdom of Rose",   mobs={"Raider","Mercenary","Swan Pirate","Factory Staff"}, minLv=700, maxLv=874 },
+    [15]  = { island="Green Zone",        mobs={"Marine Lieutenant","Marine Captain"},        minLv=875, maxLv=949 },
+    [16]  = { island="Graveyard",         mobs={"Zombie","Vampire"},                          minLv=950, maxLv=999 },
+    [17]  = { island="Snow Mountain",     mobs={"Snow Trooper","Winter Warrior"},             minLv=1000,maxLv=1099 },
+    [18]  = { island="Hot and Cold",      mobs={"Lab Subordinate","Horned Warrior","Magma Ninja","Lava Pirate"}, minLv=1100,maxLv=1249 },
+    [19]  = { island="Cursed Ship",       mobs={"Ship Deckhand","Ship Engineer","Ship Steward","Ship Officer"}, minLv=1250,maxLv=1349 },
+    [20]  = { island="Ice Castle",        mobs={"Artic Warrior","Snow Lurker"},               minLv=1350,maxLv=1424 },
+    [21]  = { island="Forgotten Island",  mobs={"Sea Soldier","Water Fighter"},               minLv=1425,maxLv=1499 },
+    -- THIRD SEA
+    [22]  = { island="Port Town",         mobs={"Pirate Millionaire","Pistol Billionaire"},   minLv=1500,maxLv=1574 },
+    [23]  = { island="Hydra Island",      mobs={"Dragon Crew Warrior","Dragon Crew Archer","Female Islander","Giant Islander"}, minLv=1575,maxLv=1699 },
+    [24]  = { island="Great Tree",        mobs={"Marine Commodore","Marine Rear Admiral"},    minLv=1700,maxLv=1799 },
+    [25]  = { island="Floating Turtle",   mobs={"Fishman Raider","Fishman Captain","Forest Pirate","Jungle Pirate","Musketeer Pirate"}, minLv=1800,maxLv=1974 },
+    [26]  = { island="Haunted Castle",    mobs={"Reborn Skeleton","Living Zombie","Demonic Soul","Possessed Mummy"}, minLv=1975,maxLv=2074 },
+    [27]  = { island="Sea of Treats",     mobs={"Peanut Scout","Peanut President","Cookie Crafter","Baking Staff","Head Baker","Cocoa Warrior","Chocolate Bar Battler","Sweet Thief","Candy Rebel"}, minLv=2075,maxLv=2500 },
+}
+
+local function getQuestForLevel(level)
+    for _, data in ipairs(QUEST_DATA) do
+        if level >= data.minLv and level <= data.maxLv then
+            return data
+        end
+    end
+    return QUEST_DATA[#QUEST_DATA]
+end
 
 -- ================================================
 -- CONFIG STATE
 -- ================================================
 local CONFIG = {
-    -- Farm
     AutoFarm         = false,
     AutoMobs         = true,
-    AutoCollectFruit = true,
     AutoQuest        = true,
-    FarmRadius       = 150,
-    AttackDelay      = 0.1,
-    RespawnDelay     = 2.0,
-    -- Stats
+    AutoCollectFruit = true,
     AutoAllocStats   = false,
-    StatPriority     = "Melee", -- Melee | Defense | Sword | Gun | Fruit
-    -- Settings
+    StatPriority     = "Melee",
     WalkSpeed        = 50,
     JumpPower        = 100,
+    FarmRadius       = 200,
+    HoverHeight      = 8,       -- hover above mob in studs
+    AttackDelay      = 0.08,
+    RespawnDelay     = 2.0,
     AntiAFK          = true,
     ESP              = false,
-    TargetMobs       = {},
-    BlacklistMobs    = {"Dummy"},
+    BringMobs        = true,    -- bring mobs to player
+    BringRadius      = 60,      -- how close to bring
 }
 
--- Runtime
-local farmConnection  = nil
-local antiAFKConn     = nil
-local espObjects      = {}
+local farmConnection = nil
+local antiAFKConn   = nil
+local espObjects    = {}
+local currentTarget = nil
 
 -- ================================================
 -- UTILITIES
 -- ================================================
-local function getChar()   return LocalPlayer.Character end
+local function getChar()  return LocalPlayer.Character end
 local function getRoot()
     local c = getChar()
     return c and c:FindFirstChild("HumanoidRootPart")
@@ -69,46 +189,85 @@ local function isAlive()
     local h = getHum()
     return h and h.Health > 0
 end
+local function getLevel()
+    -- Try to read level from leaderboard
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats then
+        local lv = stats:FindFirstChild("Level") or stats:FindFirstChild("Lv")
+        if lv then return lv.Value end
+    end
+    return 1
+end
 local function distanceTo(pos)
     local r = getRoot()
     return r and (r.Position - pos).Magnitude or math.huge
 end
-local function teleportTo(pos)
+
+-- Hover ABOVE mob position
+local function teleportAboveMob(mobRoot)
     local r = getRoot()
-    if r then r.CFrame = CFrame.new(pos + Vector3.new(0,3,0)) end
+    if r and mobRoot then
+        r.CFrame = CFrame.new(
+            mobRoot.Position + Vector3.new(0, CONFIG.HoverHeight, 0)
+        )
+    end
 end
-local function setStats()
+
+local function setMovement()
     local h = getHum()
     if h then
+        -- ONLY set speed, do NOT touch controls or camera
         h.WalkSpeed = CONFIG.WalkSpeed
         h.JumpPower = CONFIG.JumpPower
     end
 end
 
 -- ================================================
--- MOB DETECTION
+-- MOB FILTERING — SMART
 -- ================================================
-local function isValidMob(model)
+local function isCombatMob(model)
+    -- Must have humanoid
     if not model:FindFirstChildOfClass("Humanoid") then return false end
     if not model:FindFirstChild("HumanoidRootPart") then return false end
+
     local hum = model:FindFirstChildOfClass("Humanoid")
+    -- Must be alive
     if hum.Health <= 0 then return false end
+    -- Must not be local player
     if model.Name == LocalPlayer.Name then return false end
+    -- Must not be another player
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character == model then return false end
     end
-    for _, b in ipairs(CONFIG.BlacklistMobs) do
-        if model.Name == b then return false end
-    end
+    -- Must not be a known vendor/quest NPC
+    if NON_COMBAT_NPCS[model.Name] == true then return false end
+
     return true
 end
 
-local function getNearestMob()
+local function isTargetMob(model)
+    if not isCombatMob(model) then return false end
+    local level = getLevel()
+    local questData = getQuestForLevel(level)
+    if not questData then return true end
+
+    -- Check if mob name matches current quest mobs
+    local mobNameLower = model.Name:lower()
+    for _, mobName in ipairs(questData.mobs) do
+        if mobNameLower:find(mobName:lower()) then
+            return true
+        end
+    end
+    return false
+end
+
+local function getNearestTargetMob()
     local nearest, nearDist = nil, math.huge
     local root = getRoot()
     if not root then return nil end
+
     for _, m in ipairs(Workspace:GetDescendants()) do
-        if m:IsA("Model") and isValidMob(m) then
+        if m:IsA("Model") and isTargetMob(m) then
             local mr = m:FindFirstChild("HumanoidRootPart")
             if mr then
                 local d = (root.Position - mr.Position).Magnitude
@@ -122,35 +281,90 @@ local function getNearestMob()
 end
 
 -- ================================================
--- COMBAT
+-- BRING MOBS TO PLAYER
 -- ================================================
-local function attackMob(mob)
-    local mobRoot = mob:FindFirstChild("HumanoidRootPart")
-    if not mobRoot then return end
-    local char = getChar()
-    if not char then return end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if tool then
-        pcall(function() tool:Activate() end)
+local function bringMobsToPlayer()
+    if not CONFIG.BringMobs then return end
+    local root = getRoot()
+    if not root then return end
+
+    for _, m in ipairs(Workspace:GetDescendants()) do
+        if m:IsA("Model") and isTargetMob(m) then
+            local mr = m:FindFirstChild("HumanoidRootPart")
+            local mobHum = m:FindFirstChildOfClass("Humanoid")
+            if mr and mobHum and mobHum.Health > 0 then
+                local dist = (root.Position - mr.Position).Magnitude
+                if dist <= CONFIG.FarmRadius and dist > CONFIG.BringRadius then
+                    -- Teleport mob root to near player
+                    pcall(function()
+                        mr.CFrame = CFrame.new(
+                            root.Position + Vector3.new(
+                                math.random(-8, 8), 0, math.random(-8, 8)
+                            )
+                        )
+                    end)
+                end
+            end
+        end
     end
-    pcall(function() fireclickdetector(mobRoot) end)
-    pcall(function()
-        firetouchinterest(getRoot(), mobRoot, 0)
-        task.wait(0.05)
-        firetouchinterest(getRoot(), mobRoot, 1)
-    end)
 end
 
 -- ================================================
--- AUTO QUEST
+-- COMBAT — HOVER + AOE DAMAGE
 -- ================================================
-local function acceptQuest()
+local function attackAllNearby()
+    local root = getRoot()
+    if not root then return end
+    local char = getChar()
+    if not char then return end
+
+    -- Use equipped tool on all nearby mobs
+    local tool = char:FindFirstChildOfClass("Tool")
+
+    for _, m in ipairs(Workspace:GetDescendants()) do
+        if m:IsA("Model") and isTargetMob(m) then
+            local mr = m:FindFirstChild("HumanoidRootPart")
+            if mr then
+                local dist = (root.Position - mr.Position).Magnitude
+                if dist <= CONFIG.BringRadius then
+                    -- Fire touch damage
+                    pcall(function()
+                        firetouchinterest(root, mr, 0)
+                        firetouchinterest(root, mr, 1)
+                    end)
+                    pcall(function()
+                        fireclickdetector(mr)
+                    end)
+                    -- Activate tool
+                    if tool then
+                        pcall(function() tool:Activate() end)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ================================================
+-- AUTO QUEST — LEVEL AWARE
+-- ================================================
+local function acceptLevelQuest()
+    local level = getLevel()
+    local questData = getQuestForLevel(level)
+    if not questData then return end
+
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
         or ReplicatedStorage:FindFirstChild("Events")
     if not remotes then return end
-    for _, name in ipairs({"startQuest","StartQuest","AcceptQuest","QuestStart"}) do
+
+    -- Try common quest remote names
+    for _, name in ipairs({
+        "startQuest", "StartQuest", "AcceptQuest",
+        "QuestStart", "GiveQuest", "TakeQuest"
+    }) do
         local r = remotes:FindFirstChild(name)
         if r and r:IsA("RemoteEvent") then
+            pcall(function() r:FireServer(questData.island) end)
             pcall(function() r:FireServer() end)
         end
     end
@@ -160,6 +374,8 @@ end
 -- FRUIT COLLECT
 -- ================================================
 local function collectFruits()
+    local root = getRoot()
+    if not root then return end
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and (
             obj.Name:lower():find("fruit") or
@@ -167,54 +383,54 @@ local function collectFruits()
         ) then
             local part = obj:FindFirstChildOfClass("BasePart")
                       or obj:FindFirstChild("Handle")
-            if part and distanceTo(part.Position) < 30 then
-                teleportTo(part.Position)
-                task.wait(0.3)
-                pcall(function()
-                    firetouchinterest(getRoot(), part, 0)
-                    task.wait(0.1)
-                    firetouchinterest(getRoot(), part, 1)
-                end)
+            if part then
+                local dist = (root.Position - part.Position).Magnitude
+                if dist < 40 then
+                    pcall(function()
+                        root.CFrame = CFrame.new(part.Position + Vector3.new(0,3,0))
+                    end)
+                    task.wait(0.2)
+                    pcall(function()
+                        firetouchinterest(root, part, 0)
+                        task.wait(0.1)
+                        firetouchinterest(root, part, 1)
+                    end)
+                end
             end
         end
     end
 end
 
 -- ================================================
--- AUTO STAT ALLOCATION
+-- STAT ALLOCATOR
 -- ================================================
-local statMap = {
-    Melee   = "STR",
-    Defense = "DEF",
-    Sword   = "SWD",
-    Gun     = "GUN",
-    Fruit   = "DF",
-}
+local statMap = {Melee="STR",Defense="DEF",Sword="SWD",Gun="GUN",Fruit="DF"}
 local function allocateStat()
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if not remotes then return end
-    local addStat = remotes:FindFirstChild("AddStat")
-        or remotes:FindFirstChild("StatAdd")
-    if addStat then
-        pcall(function()
-            addStat:FireServer(statMap[CONFIG.StatPriority] or "STR")
-        end)
-    end
+    local r = remotes:FindFirstChild("AddStat") or remotes:FindFirstChild("StatAdd")
+    if r then pcall(function() r:FireServer(statMap[CONFIG.StatPriority] or "STR") end) end
 end
 
 -- ================================================
--- ANTI-AFK
+-- ANTI AFK — safe jump, no control interference
 -- ================================================
 local function startAntiAFK()
     if antiAFKConn then antiAFKConn:Disconnect() end
-    antiAFKConn = RunService.Heartbeat:Connect(function()
+    local t = 0
+    antiAFKConn = RunService.Heartbeat:Connect(function(dt)
         if not CONFIG.AntiAFK then return end
-        -- Virtual input to prevent kick
-        pcall(function()
-            local VIM = game:GetService("VirtualInputManager")
-            VIM:SendKeyEvent(true,  "W", false, game)
-            VIM:SendKeyEvent(false, "W", false, game)
-        end)
+        t = t + dt
+        if t >= 55 then
+            t = 0
+            local hum = getHum()
+            if hum then
+                -- Safe jump via humanoid, not keyboard
+                hum.Jump = true
+                task.wait(0.1)
+                hum.Jump = false
+            end
+        end
     end)
 end
 
@@ -222,16 +438,13 @@ end
 -- ESP
 -- ================================================
 local function clearESP()
-    for _, v in ipairs(espObjects) do
-        pcall(function() v:Destroy() end)
-    end
+    for _, v in ipairs(espObjects) do pcall(function() v:Destroy() end) end
     espObjects = {}
 end
-
 local function drawESP()
     clearESP()
     for _, model in ipairs(Workspace:GetDescendants()) do
-        if model:IsA("Model") and isValidMob(model) then
+        if model:IsA("Model") and isTargetMob(model) then
             local mr = model:FindFirstChild("HumanoidRootPart")
             if mr then
                 local box = Instance.new("SelectionBox")
@@ -254,22 +467,33 @@ local function startFarm()
     farmConnection = RunService.Heartbeat:Connect(function()
         if not CONFIG.AutoFarm then return end
         if not isAlive() then task.wait(CONFIG.RespawnDelay) return end
-        setStats()
+
+        setMovement()
+
         if CONFIG.AutoCollectFruit then collectFruits() end
-        if CONFIG.AutoQuest        then acceptQuest()    end
-        if CONFIG.AutoAllocStats   then allocateStat()   end
+        if CONFIG.AutoQuest        then acceptLevelQuest() end
+        if CONFIG.AutoAllocStats   then allocateStat() end
+
         if CONFIG.AutoMobs then
-            local mob = getNearestMob()
+            -- Bring mobs to player
+            bringMobsToPlayer()
+
+            -- Get nearest target mob
+            local mob = getNearestTargetMob()
             if mob then
                 local mr = mob:FindFirstChild("HumanoidRootPart")
                 if mr then
-                    teleportTo(mr.Position)
+                    currentTarget = mob.Name
+                    -- Hover above mob
+                    teleportAboveMob(mr)
                     task.wait(CONFIG.AttackDelay)
-                    attackMob(mob)
+                    -- Attack all nearby
+                    attackAllNearby()
                     task.wait(CONFIG.AttackDelay)
                 end
             else
-                task.wait(0.5)
+                currentTarget = "Searching..."
+                task.wait(0.3)
             end
         end
     end)
@@ -279,311 +503,489 @@ local function stopFarm()
     if farmConnection then
         farmConnection:Disconnect()
         farmConnection = nil
+        currentTarget = nil
     end
 end
 
--- ================================================
--- RESPAWN HANDLER
--- ================================================
-LocalPlayer.CharacterAdded:Connect(function(newChar)
+LocalPlayer.CharacterAdded:Connect(function()
     task.wait(CONFIG.RespawnDelay)
     if CONFIG.AutoFarm then startFarm() end
 end)
 
 -- ================================================
--- BUILD RAYFIELD WINDOW
+-- DESTROY OLD GUI
 -- ================================================
-local Window = Rayfield:CreateWindow({
-    Name             = "🍎 Blox Fruits AutoFarm",
-    LoadingTitle     = "BloxFarm Suite",
-    LoadingSubtitle  = "by brody 💀",
-    ConfigurationSaving = {
-        Enabled  = true,
-        FileName = "BloxFarmConfig",
-    },
-    Discord = {
-        Enabled = false,
-    },
-    KeySystem = false,
-})
-
--- ================================================
--- TAB: FARM
--- ================================================
-local FarmTab = Window:CreateTab("🗡️ Farm", 4483362458)
-
-FarmTab:CreateToggle({
-    Name         = "Auto Farm",
-    CurrentValue = false,
-    Flag         = "AutoFarm",
-    Callback     = function(val)
-        CONFIG.AutoFarm = val
-        if val then startFarm() else stopFarm() end
-    end,
-})
-
-FarmTab:CreateToggle({
-    Name         = "Auto Kill Mobs",
-    CurrentValue = true,
-    Flag         = "AutoMobs",
-    Callback     = function(val)
-        CONFIG.AutoMobs = val
-    end,
-})
-
-FarmTab:CreateToggle({
-    Name         = "Auto Quest",
-    CurrentValue = true,
-    Flag         = "AutoQuest",
-    Callback     = function(val)
-        CONFIG.AutoQuest = val
-    end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Farm Radius (studs)",
-    Range        = {50, 500},
-    Increment    = 10,
-    Suffix       = " studs",
-    CurrentValue = 150,
-    Flag         = "FarmRadius",
-    Callback     = function(val)
-        CONFIG.FarmRadius = val
-    end,
-})
-
-FarmTab:CreateSlider({
-    Name         = "Attack Delay (ms)",
-    Range        = {50, 1000},
-    Increment    = 50,
-    Suffix       = " ms",
-    CurrentValue = 100,
-    Flag         = "AttackDelay",
-    Callback     = function(val)
-        CONFIG.AttackDelay = val / 1000
-    end,
-})
-
-FarmTab:CreateButton({
-    Name     = "Teleport to Nearest Mob",
-    Callback = function()
-        local mob = getNearestMob()
-        if mob then
-            local mr = mob:FindFirstChild("HumanoidRootPart")
-            if mr then teleportTo(mr.Position) end
-            Rayfield:Notify({
-                Title   = "Teleported 💀",
-                Content = "Jumped to: " .. mob.Name,
-                Duration = 3,
-            })
-        else
-            Rayfield:Notify({
-                Title   = "No Mob Found 😭",
-                Content = "Nothing in radius",
-                Duration = 3,
-            })
-        end
-    end,
-})
-
--- ================================================
--- TAB: STATS
--- ================================================
-local StatsTab = Window:CreateTab("📊 Stats", 4483362458)
-
-StatsTab:CreateToggle({
-    Name         = "Auto Allocate Stats",
-    CurrentValue = false,
-    Flag         = "AutoAllocStats",
-    Callback     = function(val)
-        CONFIG.AutoAllocStats = val
-    end,
-})
-
-StatsTab:CreateDropdown({
-    Name    = "Stat Priority",
-    Options = {"Melee", "Defense", "Sword", "Gun", "Fruit"},
-    CurrentOption = {"Melee"},
-    Flag    = "StatPriority",
-    Callback = function(val)
-        CONFIG.StatPriority = val[1] or "Melee"
-    end,
-})
-
-StatsTab:CreateButton({
-    Name     = "Allocate Stat Now",
-    Callback = function()
-        allocateStat()
-        Rayfield:Notify({
-            Title   = "Stat Allocated ✌️",
-            Content = "Pumped: " .. CONFIG.StatPriority,
-            Duration = 3,
-        })
-    end,
-})
-
--- Live stat display
-StatsTab:CreateLabel("── Live Info ──")
-
-local pingLabel = StatsTab:CreateLabel("Ping: ...")
-local hpLabel   = StatsTab:CreateLabel("HP: ...")
-
-RunService.Heartbeat:Connect(function()
-    local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-    local hum  = getHum()
-    local hp   = hum and math.floor(hum.Health) or 0
-    local maxhp= hum and math.floor(hum.MaxHealth) or 0
-    pcall(function()
-        pingLabel:Set("Ping: " .. ping .. " ms")
-        hpLabel:Set("HP: " .. hp .. " / " .. maxhp)
-    end)
+pcall(function()
+    local old = CoreGui:FindFirstChild("BloxFarmV3")
+    if old then old:Destroy() end
 end)
 
 -- ================================================
--- TAB: FRUIT
+-- SCREEN GUI
 -- ================================================
-local FruitTab = Window:CreateTab("🍍 Fruit", 4483362458)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BloxFarmV3"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = CoreGui
 
-FruitTab:CreateToggle({
-    Name         = "Auto Collect Fruits",
-    CurrentValue = true,
-    Flag         = "AutoCollectFruit",
-    Callback     = function(val)
-        CONFIG.AutoCollectFruit = val
-    end,
-})
+-- ================================================
+-- MAIN FRAME — Mobile sized
+-- ================================================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "Main"
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Position = UDim2.new(0, 10, 0, 60)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14)
 
-FruitTab:CreateButton({
-    Name     = "Scan & Collect Now",
-    Callback = function()
-        collectFruits()
-        Rayfield:Notify({
-            Title   = "Fruit Scan Done 😩",
-            Content = "Attempted to collect nearby fruits",
-            Duration = 3,
-        })
-    end,
-})
+-- Stroke border
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(80, 60, 200)
+stroke.Thickness = 1.5
+stroke.Parent = MainFrame
 
-FruitTab:CreateButton({
-    Name     = "List Fruits in Workspace",
-    Callback = function()
-        local found = {}
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("Model") and (
-                obj.Name:lower():find("fruit") or
-                obj.Name:lower():find("devil")
-            ) then
-                table.insert(found, obj.Name)
+-- ================================================
+-- TITLE BAR
+-- ================================================
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 44)
+TitleBar.BackgroundColor3 = Color3.fromRGB(20, 18, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 3
+TitleBar.Parent = MainFrame
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 14)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -80, 1, 0)
+TitleLabel.Position = UDim2.new(0, 14, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🍎 BloxFarm v3"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 15
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.ZIndex = 4
+TitleLabel.Parent = TitleBar
+
+-- Minimize
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 32, 0, 28)
+MinBtn.Position = UDim2.new(1, -42, 0.5, -14)
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 38, 60)
+MinBtn.Text = "—"
+MinBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+MinBtn.TextSize = 14
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.BorderSizePixel = 0
+MinBtn.ZIndex = 5
+MinBtn.Parent = TitleBar
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+-- ================================================
+-- DRAG (Touch + Mouse, does NOT affect game camera)
+-- ================================================
+local dragging, dragStart, frameStart
+local function getDragPos(input)
+    return Vector2.new(input.Position.X, input.Position.Y)
+end
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+    or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = getDragPos(input)
+        frameStart = Vector2.new(
+            MainFrame.Position.X.Offset,
+            MainFrame.Position.Y.Offset
+        )
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
             end
+        end)
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if not dragging then return end
+    if input.UserInputType ~= Enum.UserInputType.Touch
+    and input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+    local delta = getDragPos(input) - dragStart
+    local newX  = math.clamp(frameStart.X + delta.X, 0,
+        workspace.CurrentCamera.ViewportSize.X - MainFrame.AbsoluteSize.X)
+    local newY  = math.clamp(frameStart.Y + delta.Y, 0,
+        workspace.CurrentCamera.ViewportSize.Y - MainFrame.AbsoluteSize.Y)
+    MainFrame.Position = UDim2.new(0, newX, 0, newY)
+end)
+
+-- ================================================
+-- TAB SYSTEM
+-- ================================================
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, -12, 0, 32)
+TabBar.Position = UDim2.new(0, 6, 0, 48)
+TabBar.BackgroundColor3 = Color3.fromRGB(20, 18, 35)
+TabBar.BorderSizePixel = 0
+TabBar.ZIndex = 3
+TabBar.Parent = MainFrame
+Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 8)
+
+local TabLayout = Instance.new("UIListLayout")
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.Padding = UDim.new(0, 2)
+TabLayout.Parent = TabBar
+Instance.new("UIPadding", TabBar).PaddingLeft = UDim.new(0, 3)
+
+-- Content area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -12, 1, -90)
+Content.Position = UDim2.new(0, 6, 0, 86)
+Content.BackgroundTransparency = 1
+Content.ClipsDescendants = true
+Content.Parent = MainFrame
+
+local tabList = {}
+local activeTab = nil
+
+local function newPage()
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 2
+    page.ScrollBarImageColor3 = Color3.fromRGB(80, 60, 200)
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = Content
+    local ul = Instance.new("UIListLayout")
+    ul.Padding = UDim.new(0, 5)
+    ul.SortOrder = Enum.SortOrder.LayoutOrder
+    ul.Parent = page
+    Instance.new("UIPadding", page).PaddingTop = UDim.new(0, 4)
+    return page
+end
+
+local function newTabBtn(label, page)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.24, -2, 0, 26)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 28, 48)
+    btn.Text = label
+    btn.TextColor3 = Color3.fromRGB(160, 160, 180)
+    btn.TextSize = 10
+    btn.Font = Enum.Font.GothamSemibold
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 4
+    btn.Parent = TabBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    btn.MouseButton1Click:Connect(function()
+        for _, t in ipairs(tabList) do
+            t.page.Visible = false
+            TweenService:Create(t.btn, TweenInfo.new(0.1), {
+                BackgroundColor3 = Color3.fromRGB(30, 28, 48),
+                TextColor3 = Color3.fromRGB(160, 160, 180),
+            }):Play()
         end
-        local msg = #found > 0
-            and table.concat(found, ", ")
-            or  "No fruits found 😭"
-        Rayfield:Notify({
-            Title   = "Fruits Found: " .. #found,
-            Content = msg,
-            Duration = 6,
-        })
-    end,
-})
+        page.Visible = true
+        TweenService:Create(btn, TweenInfo.new(0.1), {
+            BackgroundColor3 = Color3.fromRGB(80, 60, 200),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+        }):Play()
+    end)
+    table.insert(tabList, {btn=btn, page=page})
+    return btn
+end
 
 -- ================================================
--- TAB: SETTINGS
+-- UI COMPONENT BUILDERS
 -- ================================================
-local SettingsTab = Window:CreateTab("⚙️ Settings", 4483362458)
+local function addToggle(page, label, default, cb)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -4, 0, 38)
+    row.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    row.BorderSizePixel = 0
+    row.Parent = page
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
 
-SettingsTab:CreateSlider({
-    Name         = "Walk Speed",
-    Range        = {16, 250},
-    Increment    = 1,
-    Suffix       = "",
-    CurrentValue = 50,
-    Flag         = "WalkSpeed",
-    Callback     = function(val)
-        CONFIG.WalkSpeed = val
-        setStats()
-    end,
-})
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -58, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
 
-SettingsTab:CreateSlider({
-    Name         = "Jump Power",
-    Range        = {50, 500},
-    Increment    = 10,
-    Suffix       = "",
-    CurrentValue = 100,
-    Flag         = "JumpPower",
-    Callback     = function(val)
-        CONFIG.JumpPower = val
-        setStats()
-    end,
-})
+    local state = default
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(0, 40, 0, 20)
+    bg.Position = UDim2.new(1, -48, 0.5, -10)
+    bg.BackgroundColor3 = state and Color3.fromRGB(80,60,200) or Color3.fromRGB(50,50,65)
+    bg.BorderSizePixel = 0
+    bg.Parent = row
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
 
-SettingsTab:CreateToggle({
-    Name         = "Anti-AFK",
-    CurrentValue = true,
-    Flag         = "AntiAFK",
-    Callback     = function(val)
-        CONFIG.AntiAFK = val
-    end,
-})
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = state and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7)
+    knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    knob.BorderSizePixel = 0
+    knob.Parent = bg
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
-SettingsTab:CreateToggle({
-    Name         = "Mob ESP (Selection Box)",
-    CurrentValue = false,
-    Flag         = "ESP",
-    Callback     = function(val)
-        CONFIG.ESP = val
-        if val then
-            -- Refresh ESP every 3s
-            task.spawn(function()
-                while CONFIG.ESP do
-                    drawESP()
-                    task.wait(3)
-                end
-                clearESP()
-            end)
-        else
+    local hitbox = Instance.new("TextButton")
+    hitbox.Size = UDim2.new(1,0,1,0)
+    hitbox.BackgroundTransparency = 1
+    hitbox.Text = ""
+    hitbox.Parent = row
+    hitbox.MouseButton1Click:Connect(function()
+        state = not state
+        local ti = TweenInfo.new(0.15)
+        TweenService:Create(bg, ti, {
+            BackgroundColor3 = state and Color3.fromRGB(80,60,200) or Color3.fromRGB(50,50,65)
+        }):Play()
+        TweenService:Create(knob, ti, {
+            Position = state and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7)
+        }):Play()
+        cb(state)
+    end)
+    return row
+end
+
+local function addButton(page, label, cb)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -4, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(70, 52, 180)
+    btn.Text = label
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 12
+    btn.Font = Enum.Font.GothamSemibold
+    btn.BorderSizePixel = 0
+    btn.Parent = page
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.MouseButton1Click:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3=Color3.fromRGB(50,38,130)}):Play()
+        task.wait(0.12)
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3=Color3.fromRGB(70,52,180)}):Play()
+        cb()
+    end)
+    return btn
+end
+
+local function addLabel(page, text, color)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -4, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = color or Color3.fromRGB(130, 130, 155)
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = page
+    return lbl
+end
+
+local function addSection(page, text)
+    return addLabel(page, "  ── " .. text .. " ──", Color3.fromRGB(80, 60, 200))
+end
+
+local function addInfoBox(page, text)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, -4, 0, 44)
+    f.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+    f.BorderSizePixel = 0
+    f.Parent = page
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -10, 1, 0)
+    lbl.Position = UDim2.new(0, 5, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextWrapped = true
+    lbl.Parent = f
+    return lbl
+end
+
+-- ================================================
+-- BUILD PAGES
+-- ================================================
+local farmPage     = newPage()
+local statsPage    = newPage()
+local fruitPage    = newPage()
+local settingsPage = newPage()
+
+newTabBtn("⚔️Farm",  farmPage)
+newTabBtn("📊Stats", statsPage)
+newTabBtn("🍍Fruit", fruitPage)
+newTabBtn("⚙️Set",   settingsPage)
+
+-- ========================
+-- FARM TAB
+-- ========================
+addSection(farmPage, "FARMING")
+
+addToggle(farmPage, "⚔️ Auto Farm", false, function(v)
+    CONFIG.AutoFarm = v
+    if v then startFarm() else stopFarm() end
+end)
+
+addToggle(farmPage, "👊 Auto Kill Mobs", true, function(v)
+    CONFIG.AutoMobs = v
+end)
+
+addToggle(farmPage, "🧲 Bring Mobs to Me", true, function(v)
+    CONFIG.BringMobs = v
+end)
+
+addToggle(farmPage, "📋 Auto Quest", true, function(v)
+    CONFIG.AutoQuest = v
+end)
+
+addSection(farmPage, "CURRENT QUEST")
+local questInfoLabel = addInfoBox(farmPage, "Quest: Loading...")
+
+addButton(farmPage, "📍 TP to Nearest Mob", function()
+    local mob = getNearestTargetMob()
+    if mob then
+        local mr = mob:FindFirstChild("HumanoidRootPart")
+        if mr then
+            local r = getRoot()
+            if r then r.CFrame = CFrame.new(mr.Position + Vector3.new(0,8,0)) end
+        end
+    end
+end)
+
+-- ========================
+-- STATS TAB
+-- ========================
+addSection(statsPage, "LIVE INFO")
+
+local hpLbl     = addInfoBox(statsPage, "❤️ HP: —")
+local levelLbl  = addInfoBox(statsPage, "⭐ Level: —")
+local targetLbl = addInfoBox(statsPage, "🎯 Target: None")
+local questLbl  = addInfoBox(statsPage, "📋 Zone: —")
+
+-- Live update
+RunService.Heartbeat:Connect(function()
+    local hum   = getHum()
+    local hp    = hum and math.floor(hum.Health) or 0
+    local maxhp = hum and math.floor(hum.MaxHealth) or 0
+    local lv    = getLevel()
+    local qData = getQuestForLevel(lv)
+
+    pcall(function()
+        hpLbl.Text     = "❤️ HP: " .. hp .. " / " .. maxhp
+        levelLbl.Text  = "⭐ Level: " .. lv
+        targetLbl.Text = "🎯 Target: " .. (currentTarget or "None")
+        questLbl.Text  = "📋 Zone: " .. (qData and qData.island or "Unknown")
+        questInfoLabel.Text = "Quest Zone: " .. (qData and qData.island or "?")
+            .. "\nMobs: " .. (qData and table.concat(qData.mobs, ", "):sub(1,40) or "?")
+    end)
+end)
+
+addSection(statsPage, "AUTO STATS")
+addToggle(statsPage, "📈 Auto Allocate Stats", false, function(v)
+    CONFIG.AutoAllocStats = v
+end)
+addButton(statsPage, "💪 Allocate Stat Now", function()
+    allocateStat()
+end)
+
+-- ========================
+-- FRUIT TAB
+-- ========================
+addSection(fruitPage, "FRUIT")
+addToggle(fruitPage, "🍍 Auto Collect Fruits", true, function(v)
+    CONFIG.AutoCollectFruit = v
+end)
+addButton(fruitPage, "🔍 Scan & Collect Now", function()
+    task.spawn(collectFruits)
+end)
+addButton(fruitPage, "📋 List Fruits in Console", function()
+    local found = {}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and (
+            obj.Name:lower():find("fruit") or obj.Name:lower():find("devil")
+        ) then table.insert(found, obj.Name) end
+    end
+    print("[BloxFarm] Fruits: " .. #found)
+    for _, n in ipairs(found) do print("  -> " .. n) end
+end)
+
+-- ========================
+-- SETTINGS TAB
+-- ========================
+addSection(settingsPage, "MOVEMENT")
+addToggle(settingsPage, "👟 Speed Boost (50)", true, function(v)
+    CONFIG.WalkSpeed = v and 50 or 16
+    setMovement()
+end)
+addToggle(settingsPage, "🦘 Jump Boost (100)", true, function(v)
+    CONFIG.JumpPower = v and 100 or 50
+    setMovement()
+end)
+
+addSection(settingsPage, "MISC")
+addToggle(settingsPage, "🤖 Anti-AFK", true, function(v)
+    CONFIG.AntiAFK = v
+end)
+addToggle(settingsPage, "👁️ Mob ESP", false, function(v)
+    CONFIG.ESP = v
+    if v then
+        task.spawn(function()
+            while CONFIG.ESP do drawESP() task.wait(3) end
             clearESP()
-        end
-    end,
-})
+        end)
+    else clearESP() end
+end)
 
-SettingsTab:CreateButton({
-    Name     = "Reset Config",
-    Callback = function()
-        CONFIG.WalkSpeed  = 50
-        CONFIG.JumpPower  = 100
-        CONFIG.FarmRadius = 150
-        CONFIG.AttackDelay = 0.1
-        setStats()
-        Rayfield:Notify({
-            Title   = "Config Reset 🤨",
-            Content = "All settings back to default",
-            Duration = 3,
-        })
-    end,
-})
+addSection(settingsPage, "DANGER ZONE")
+addButton(settingsPage, "🗑️ Destroy GUI", function()
+    stopFarm()
+    clearESP()
+    ScreenGui:Destroy()
+end)
 
-SettingsTab:CreateButton({
-    Name     = "Destroy GUI",
-    Callback = function()
-        stopFarm()
-        clearESP()
-        Rayfield:Destroy()
-    end,
-})
+-- ================================================
+-- MINIMIZE
+-- ================================================
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    Content.Visible = not minimized
+    TabBar.Visible  = not minimized
+    TweenService:Create(MainFrame, TweenInfo.new(0.2), {
+        Size = minimized
+            and UDim2.new(0, 300, 0, 48)
+            or  UDim2.new(0, 300, 0, 400)
+    }):Play()
+    MinBtn.Text = minimized and "□" or "—"
+end)
+
+-- ================================================
+-- SHOW FIRST TAB
+-- ================================================
+farmPage.Visible = true
+tabList[1].btn.BackgroundColor3 = Color3.fromRGB(80, 60, 200)
+tabList[1].btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 
 -- ================================================
 -- INIT
 -- ================================================
 startAntiAFK()
-setStats()
+setMovement()
 
-Rayfield:Notify({
-    Title   = "BloxFarm Loaded 💀",
-    Content = "Go to Farm tab and toggle Auto Farm ✌️",
-    Duration = 5,
-})
-
-print("[BloxFarm] Dashboard ready — Rayfield UI live 😭")
+print("[BloxFarm v3] Loaded — Delta Compatible 💀✌️")
