@@ -65,13 +65,13 @@ do
 end
 
 -- ========================================
--- NEVAHUB SETTINGS PERSISTENCE
+-- FLUX BYTE SETTINGS PERSISTENCE
 -- Saves data to a JSON file so it survives rejoins.
 -- Safe no-ops if the executor lacks file functions.
 -- ========================================
 do
   local HttpService = game:GetService("HttpService")
-  local FolderName = "NEVAHUB"
+  local FolderName = "FLUX_BYTE"
   local FileName = "Settings.json"
   local FullPath = FolderName .. "/" .. FileName
 
@@ -116,7 +116,7 @@ do
 end
 
 -- ========================================
--- NEVAHUB PERFORMANCE / ANTI-SPAM HOOKS
+-- FLUX BYTE PERFORMANCE / ANTI-SPAM HOOKS
 -- Silences error/warn spam, kills the Death effect + NPC guide updates,
 -- and hides decorative Rocks/Foam. All wrapped in pcall so a missing
 -- object or executor limitation never breaks the main script.
@@ -159,7 +159,7 @@ pcall(function()
 end)
 
 -- ========================================
--- NEVAHUB FULL BRIGHT - brighter, readable lighting.
+-- FLUX BYTE FULL BRIGHT - brighter, readable lighting.
 -- ========================================
 pcall(function()
   Lighting.Ambient = Color3.new(0.695, 0.695, 0.695)
@@ -170,7 +170,7 @@ pcall(function()
 end)
 
 -- ========================================
--- NEVAHUB AUTO KEN (Observation Haki).
+-- FLUX BYTE AUTO KEN (Observation Haki).
 -- Off by default; enable with _G.AutoKen = true.
 -- ========================================
 _G.AutoKen = _G.AutoKen or false
@@ -494,7 +494,7 @@ end
 -- loaded -- i.e. "the script cannot be executed" for some people while it
 -- runs fine for you. Now it degrades to no aim-hook instead of dying.
 if not (getrawmetatable and setreadonly and newcclosure and getnamecallmethod) then
-  warn("[NEVAHUB] executor lacks metatable hook API; aim/mouse-position hook disabled")
+  warn("[FLUX BYTE] executor lacks metatable hook API; aim/mouse-position hook disabled")
 else
 pcall(function()
 local gg = getrawmetatable(game)
@@ -707,9 +707,9 @@ end
 -- NOTE: stored on _G, not as top-level locals. This chunk is already close to
 -- Luau's 200-active-locals-per-function limit; adding more can make the whole
 -- file refuse to compile ("too many local variables") on some executors.
-_G.NEVA_Inv = _G.NEVA_Inv or { data = {}, at = -math.huge }
+_G.FLUX_Inv = _G.FLUX_Inv or { data = {}, at = -math.huge }
 function SafeInventory(maxAge)
-  local c = _G.NEVA_Inv
+  local c = _G.FLUX_Inv
   if os.clock() - c.at < (maxAge or 1) then return c.data end
   local ok, result = pcall(function()
     return replicated.Remotes.CommF_:InvokeServer("getInventory")
@@ -1153,21 +1153,9 @@ _tp = function(target)
         end
     end
     
-    -- Every normal _tp call is an active movement request. The old build left
-    -- shouldTween=false after startup, so its own watcher immediately cancelled
-    -- the tween and Auto Farm could remain at the quest giver.
-    shouldTween = true
-    pcall(function()
-        if _G.FluxByteActiveTween and _G.FluxByteActiveTween.PlaybackState == Enum.PlaybackState.Playing then
-            _G.FluxByteActiveTween:Cancel()
-        end
-    end)
-
     local distance = (gg.Position - rootPart.Position).Magnitude
-    local TWEEN_SPEED = 180
-    local tweenInfo = TweenInfo.new(distance / TWEEN_SPEED, Enum.EasingStyle.Linear)
-    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})
-    _G.FluxByteActiveTween = tween    
+    local tweenInfo = TweenInfo.new(distance / 300, Enum.EasingStyle.Linear)
+    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})    
     
     if plr.Character.Humanoid.Sit == true then
         block.CFrame = CFrame.new(block.Position.X, gg.Y, block.Position.Z)
@@ -1577,27 +1565,18 @@ QuestNeta = function()
 end
 
 -- =====================================================================
--- NEVAHUB GUI
--- Exposes the API surface used by this script:
---   NevaLib:MakeWindow -> creates the window
---   Window:MakeTab / :NewMinimizer / :CreateMobileMinimizer / :Notify
---   Tab:AddSection / AddToggle / AddButton / AddSlider / AddDropdown /
---       AddParagraph / AddTextBox / AddDiscordInvite
---   Toggle:Set(bool)        Paragraph:SetDesc(str)
+-- FLUX BYTE GUI - REDZ HUB EDITION
+-- Rewritten to use redzlib (Redz Hub UI Library) with same API surface
+-- as the old Fluent wrapper so the rest of the script works unchanged.
+-- Design: Redz Hub style = Dark background, Red accent, rounded, left tabs
 -- =====================================================================
--- FIX: this was `loadstring(game:HttpGet(url))()` with zero error handling.
--- That single line is the other big "script cannot be executed" report:
---  * github.com/.../releases/download/... 302-redirects to
---    objects.githubusercontent.com, and several mobile executors' HttpGet
---    does not follow redirects -> returns "" or an HTML error page
---  * loadstring on that garbage returns nil + an error string, and calling
---    nil throws "attempt to call a nil value" at top level -> whole script dead
--- Now: try mirrors, and report WHICH step failed instead of dying silently.
-local Fluent
+
+local redzlib
 do
   local sources = {
-    "https://github.com/StyearX/Fluent-modded/releases/download/1.5.5/FluentPro",
-    "https://raw.githubusercontent.com/StyearX/Fluent-modded/main/FluentPro.lua",
+    "https://raw.githubusercontent.com/Anonimo-666777/REDZ-HUB/main/Redz%20Hub%20lib%20core.lua",
+    "https://raw.githubusercontent.com/realredz/RedzLibV5/main/Source.lua",
+    "https://raw.githubusercontent.com/tlredz/Scripts/main/redzlib.lua",
   }
   local httpget = (syn and syn.request) and function(u)
       local r = syn.request({ Url = u, Method = "GET" })
@@ -1610,84 +1589,108 @@ do
     if ok and type(body) == "string" and #body > 1000 and not body:find("^%s*<") then
       local chunk, err = loadstring(body)
       if chunk then
-        local ran, lib = pcall(chunk)
-        if ran and type(lib) == "table" then Fluent = lib break end
-        lastErr = "library errored while loading: " .. tostring(lib)
+        local ran, result = pcall(chunk)
+        -- redzlib sets global redzlib, but some versions return library
+        if ran then
+          redzlib = redzlib or _G.redzlib or result
+          if type(redzlib) == "table" and redzlib.MakeWindow then break end
+        end
+        lastErr = "library errored: " .. tostring(result)
       else
         lastErr = "compile failed: " .. tostring(err)
       end
     else
-      lastErr = "download failed / not a script: " .. tostring(ok and body and #body)
+      lastErr = "download failed: " .. tostring(ok and body and #body)
     end
   end
 
-  if not Fluent then
-    local msg = "[NEVAHUB] UI library could not load (" .. tostring(lastErr) ..
-      "). Your executor's HttpGet is likely blocked or does not follow redirects."
+  if not redzlib or not redzlib.MakeWindow then
+    -- fallback: try global
+    redzlib = _G.redzlib
+  end
+
+  if not redzlib or not redzlib.MakeWindow then
+    local msg = "[FLUX BYTE] UI library could not load (" .. tostring(lastErr) .. ")"
     warn(msg)
     pcall(function()
       game:GetService("StarterGui"):SetCore("SendNotification",
-        { Title = "NEVAHUB failed", Text = "UI library download blocked by your executor.", Duration = 15 })
+        { Title = "FLUX BYTE failed", Text = "RedzLib download blocked.", Duration = 15 })
     end)
     error(msg, 0)
   end
 end
 
-local UserInputService = game:GetService("UserInputService")
---local LocalPlayer = game:GetService("Players").LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+-- Apply Redz Hub signature theme (DarkRed / Dark)
+pcall(function() redzlib:SetTheme("DarkRed") end)
 
--- unique-flag generator (Fluent wants a unique flag id per stateful element)
+local UserInputService = game:GetService("UserInputService")
+
 local _flagN = 0
 local function nextFlag(prefix)
     _flagN = _flagN + 1
-    return "NEVAHUB_" .. (prefix or "F") .. "_" .. _flagN
+    return "FLUXBYTE_" .. (prefix or "F") .. "_" .. _flagN
 end
 
--- normalize an icon string to something the GUI accepts.
--- Fluent accepts rbxassetid:// and prefix/name packs. Bare lucide names
--- ("Info","locate","waves","tent") are mapped to the lucide/ pack.
-local function fixIcon(icon)
-    if type(icon) ~= "string" or icon == "" then return icon end
-    if icon:find("://") or icon:find("/") then return icon end
-    return "lucide/" .. icon:lower()
-end
-
--- Source mixes (Name=) and (Title=) keys.
--- Accept either, and never pass nil (the GUI errors on a missing Title).
 local function titleOf(o)
-    local t = o.Name or o.Title or o.Text or ""
+    if type(o) == "string" then return o end
+    if type(o) ~= "table" then return "" end
+    local t = o.Name or o.Title or o.Text or o[1] or ""
     return tostring(t)
 end
 
--- ---- Tab wrapper -----------------------------------------------------
+local function fixIcon(icon)
+    if type(icon) ~= "string" or icon == "" then return icon end
+    if icon:find("://") then return icon end
+    -- redzlib uses lucide names lowercase without prefix
+    -- strip prefixes like "lucide/" or "solar/"
+    icon = icon:gsub("lucide/", ""):gsub("solar/", ""):gsub("-bold", ""):gsub("rbxassetid://%d+", "")
+    if icon == "" then return "layout-grid" end
+    return icon:lower()
+end
+
+-- Extract callback from both array and dict style
+local function getCallback(o, idx)
+    if type(o) == "table" then
+        if type(o.Callback) == "function" then return o.Callback end
+        if type(o[idx]) == "function" then return o[idx] end
+        -- second element sometimes callback in redzlib array style
+        for _, v in ipairs(o) do if type(v) == "function" then return v end end
+    end
+    return function() end
+end
+
+-- ---- Tab wrapper for Redz Hub compatibility ----
 local Tab = {}
 Tab.__index = Tab
 
-local function wrapTab(fluentTab)
-    return setmetatable({ _t = fluentTab }, Tab)
-end
-
--- container = a tab OR a section; both share the Add* methods.
-local function bindContainer(self)
-    return self._sec or self._t
+local function wrapTab(redzTab, redzWindow)
+    return setmetatable({ _t = redzTab, _w = redzWindow }, Tab)
 end
 
 function Tab:AddSection(name)
-    local sec = self._t:AddSection(tostring(name or ""))
-    return setmetatable({ _t = self._t, _sec = sec }, Tab)
+    local title = titleOf(name)
+    -- redzlib AddSection expects string
+    local sec = self._t:AddSection(title)
+    -- return self for chaining, but also allow section as container
+    -- redzlib sections are not containers, so we keep tab as container
+    return setmetatable({ _t = self._t, _sec = sec, _w = self._w }, Tab)
 end
 
-function Tab:AddParagraph(title, desc)
-    -- positional (Title, Desc); returns obj with :SetDesc
-    local p = bindContainer(self):AddParagraph({
-        Title = tostring(title or ""),
-        Content = tostring(desc or ""),
-    })
+function Tab:AddParagraph(a, b)
+    local title, content
+    if type(a) == "table" then
+        title = titleOf(a)
+        content = a[2] or a.Description or a.Content or ""
+    else
+        title = tostring(a or "")
+        content = tostring(b or "")
+    end
+    -- redzlib expects {Title, Desc}
+    local p = self._t:AddParagraph({title, content})
     local wrapped = {}
     function wrapped:SetDesc(text)
         if p.SetDesc then p:SetDesc(tostring(text))
-        elseif p.SetContent then p:SetContent(tostring(text))
-        elseif p.SetValue then p:SetValue(tostring(text)) end
+        elseif p.Set then p:Set(tostring(title), tostring(text)) end
     end
     function wrapped:SetTitle(text)
         if p.SetTitle then p:SetTitle(tostring(text)) end
@@ -1696,27 +1699,49 @@ function Tab:AddParagraph(title, desc)
 end
 
 function Tab:AddButton(o)
-    return bindContainer(self):AddButton({
-        Title = titleOf(o),
-        Description = o.Description,
-        Icon = fixIcon(o.Icon),
-        Callback = o.Callback or function() end,
-    })
+    local name = titleOf(o)
+    local cb = getCallback(o, 2)
+    -- redzlib: AddButton({Name, callback})
+    local btn
+    if type(o) == "table" and o[1] and type(o[2]) == "function" then
+        btn = self._t:AddButton(o)
+    else
+        btn = self._t:AddButton({name, cb})
+    end
+    return btn
 end
 
 function Tab:AddToggle(o)
-    local flag = o.Flag or nextFlag("T")
-    local tgl = bindContainer(self):AddToggle(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Default = o.Default or false,
-        Callback = o.Callback or function() end,
-    })
-    -- compat: :Set(bool)
+    local name = titleOf(o)
+    local default = false
+    local flag = nil
+    local cb = function() end
+    
+    if type(o) == "table" then
+        if o.Name or o.Title then
+            -- dict style {Name=, Default=, Callback=, Flag=}
+            default = o.Default
+            if default == nil then default = o.Value end
+            if default == nil then default = false end
+            flag = o.Flag or nextFlag("T")
+            cb = o.Callback or function() end
+        else
+            -- array style {"Name", default, callback, flag}
+            name = o[1] or name
+            default = o[2]
+            if default == nil then default = false end
+            cb = o[3] or function() end
+            flag = o[4] or nextFlag("T")
+        end
+    end
+    
+    -- redzlib expects {"Name", default, callback, flag}
+    local tgl = self._t:AddToggle({name, default, cb, flag})
+    
     local wrapped = { _tgl = tgl, Flag = flag }
     function wrapped:Set(v)
-        if tgl.SetValue then tgl:SetValue(v and true or false)
-        elseif tgl.Set then tgl:Set(v and true or false) end
+        if tgl.Set then tgl:Set(v and true or false) end
+        if tgl.SetValue then tgl:SetValue(v and true or false) end
     end
     function wrapped:Get()
         return tgl.Value
@@ -1725,388 +1750,304 @@ function Tab:AddToggle(o)
 end
 
 function Tab:AddSlider(o)
-    local flag = o.Flag or nextFlag("S")
-    local rounding = o.Rounding
-    if rounding == nil then
-        -- treat integer increment as 0 decimals
-        rounding = (o.Increment and o.Increment >= 1) and 0 or 0
+    local name = titleOf(o)
+    local min = 0
+    local max = 100
+    local default = 0
+    local cb = function() end
+    local step = 1
+    local flag = nextFlag("S")
+    
+    if type(o) == "table" then
+        if o.Name or o.Title then
+            min = o.Min or 0
+            max = o.Max or 100
+            default = o.Default or min
+            cb = o.Callback or function() end
+            step = o.Increment or o.Increase or 1
+            flag = o.Flag or flag
+        else
+            -- array {"Name", Min, Max, Default, Callback, Increase, Flag}
+            name = o[1] or name
+            min = o[2] or 0
+            max = o[3] or 100
+            default = o[4] or 0
+            cb = o[5] or function() end
+            step = o[6] or 1
+            flag = o[7] or flag
+        end
     end
-    local sld = bindContainer(self):AddSlider(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Default = o.Default or o.Min or 0,
-        Min = o.Min or 0,
-        Max = o.Max or 100,
-        Rounding = rounding,
-        Callback = o.Callback or function() end,
-    })
+    
+    local sld = self._t:AddSlider({name, min, max, default, cb, step, flag})
     local wrapped = { _sld = sld, Flag = flag }
-    function wrapped:Set(v)
-        if sld.SetValue then sld:SetValue(v) end
-    end
+    function wrapped:Set(v) if sld.Set then sld:Set(v) end end
     return wrapped
 end
 
 function Tab:AddDropdown(o)
-    local flag = o.Flag or nextFlag("D")
-    local dd = bindContainer(self):AddDropdown(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Values = o.Options or {},
-        Default = o.Default,
-        Multi = false,
-        Callback = o.Callback or function() end,
-    })
+    local name = titleOf(o)
+    local options = {}
+    local default = nil
+    local cb = function() end
+    local flag = nextFlag("D")
+    
+    if type(o) == "table" then
+        if o.Name or o.Title then
+            options = o.Options or {}
+            default = o.Default
+            cb = o.Callback or function() end
+            flag = o.Flag or flag
+            -- convert single default to array if needed
+            if type(default) == "string" then default = {default} end
+        else
+            -- array {"Name", Options, Default, Callback, Flag}
+            name = o[1] or name
+            options = o[2] or {}
+            default = o[3]
+            if type(default) == "string" then default = {default} end
+            cb = o[4] or function() end
+            flag = o[5] or flag
+        end
+    end
+    
+    if not default then default = {options[1]} end
+    
+    local dd = self._t:AddDropdown({name, options, default, cb, flag})
     local wrapped = { _dd = dd, Flag = flag }
-    function wrapped:Set(v)
-        if dd.SetValue then dd:SetValue(v) end
-    end
+    function wrapped:Set(v) if dd.Set then dd:Set(v) end end
     function wrapped:Refresh(opts, keep)
-        if dd.SetValues then dd:SetValues(opts) end
+        if dd.Refresh then dd:Refresh(opts) elseif dd.SetValues then dd:SetValues(opts) end
     end
-    -- "SetOptions" alias sometimes used
     wrapped.SetOptions = wrapped.Refresh
     return wrapped
 end
 
 function Tab:AddTextBox(o)
-    local flag = o.Flag or nextFlag("I")
-    return bindContainer(self):AddInput(flag, {
-        Title = titleOf(o),
-        Placeholder = o.Placeholder,
-        Default = o.Default,
-        Finished = o.ClearOnFocus and false or false,
-        Callback = o.Callback or function() end,
-    })
+    local name = titleOf(o)
+    local default = ""
+    local clear = false
+    local cb = function() end
+    local placeholder = ""
+    
+    if type(o) == "table" then
+        if o.Name or o.Title then
+            default = o.Default or ""
+            clear = o.ClearOnFocus or false
+            cb = o.Callback or function() end
+            placeholder = o.Placeholder or ""
+        else
+            -- array {"Name", Default, ClearOnFocus, Callback, Placeholder}
+            name = o[1] or name
+            default = o[2] or ""
+            clear = o[3] or false
+            cb = o[4] or function() end
+            placeholder = o[5] or ""
+        end
+    end
+    
+    return self._t:AddTextBox({name, default, clear, cb, placeholder})
 end
 
 function Tab:AddDiscordInvite(o)
-    local code = o.Invite or ""
-    code = code:gsub("https://discord%.gg/", ""):gsub("https://discord%.com/invite/", "")
+    local name = o.Title or o.Name or "Discord"
+    local logo = o.Logo or o.Banner or "rbxassetid://75841821715476"
+    local invite = o.Invite or ""
     local ok = pcall(function()
-        bindContainer(self):AddDiscord({ InviteCode = code })
+        self._t:AddDiscordInvite({name, logo, invite})
     end)
     if not ok then
-        bindContainer(self):AddParagraph({
-            Title = o.Title or "Discord",
-            Content = (o.Description or "") .. "\nInvite: " .. (o.Invite or ""),
-        })
+        self._t:AddParagraph({name, (o.Description or "") .. "\n" .. invite})
     end
 end
 
--- passthrough extras that may appear
-function Tab:AddDivider()  return bindContainer(self):AddDivider() end
-function Tab:AddInput(o)    return self:AddTextBox(o) end
-function Tab:AddLabel(t)    return self:AddParagraph(t, "") end
+function Tab:AddColorPicker(o)
+    local name = titleOf(o)
+    local color = Color3.fromRGB(255,0,0)
+    local cb = function() end
+    local flag = nextFlag("C")
+    if type(o) == "table" then
+        if o.Name or o.Title then
+            color = o.Default or color
+            cb = o.Callback or function() end
+            flag = o.Flag or flag
+        else
+            name = o[1] or name
+            color = o[2] or color
+            cb = o[3] or function() end
+            flag = o[4] or flag
+        end
+    end
+    if self._t.AddColorPicker then
+        return self._t:AddColorPicker({name, color, cb, flag})
+    end
+end
 
--- ---- Window wrapper --------------------------------------------------
+function Tab:AddKeybind(o) 
+    -- not all redzlib versions have keybind, fallback to button
+    if self._t.AddKeybind then
+        return self._t:AddKeybind(o)
+    end
+end
+
+function Tab:AddDivider() 
+    if self._t.AddDivider then return self._t:AddDivider() end
+    return self:AddSection("ââââââââââââââ")
+end
+function Tab:AddInput(o) return self:AddTextBox(o) end
+function Tab:AddLabel(t) return self:AddParagraph(t, "") end
+
+-- ---- Window wrapper ----
 local WindowWrap = {}
 WindowWrap.__index = WindowWrap
 
 function WindowWrap:MakeTab(o)
-    return wrapTab(self._w:AddTab({
-        Title = o.Title,
-        Icon = fixIcon(o.Icon),
-    }))
+    local title = titleOf(o)
+    local icon = fixIcon(o.Icon or o[2] or "layout-grid")
+    -- redzlib MakeTab expects {Title, Icon}
+    local redzTab = self._w:MakeTab({title, icon})
+    return wrapTab(redzTab, self._w)
 end
 
 function WindowWrap:Notify(o)
-    Fluent:Notify({
-        Title = o.Title,
-        Content = o.Content,
-        SubContent = o.SubContent,
-        Type = o.Type or "Info",
-        Icon = fixIcon(o.Icon or o.Image),
-        Duration = o.Duration or 3,
-    })
+    local title = o.Title or "FLUX BYTE"
+    local content = o.Content or ""
+    if redzlib.Notify then
+        pcall(function() redzlib:Notify({Title=title, Content=content, Duration=o.Duration or 3}) end)
+    elseif self._w.Notify then
+        pcall(function() self._w:Notify({Title=title, Content=content, Duration=o.Duration or 3}) end)
+    end
 end
 
-
-function WindowWrap:SetTheme(name)
-    local ok = false
-    pcall(function()
-        if self._w.SetTheme then
-            self._w:SetTheme(name)
-            ok = true
-        elseif Fluent.SetTheme then
-            Fluent:SetTheme(name)
-            ok = true
-        end
-    end)
-    return ok
+function WindowWrap:Dialog(o)
+    if self._w.Dialog then return self._w:Dialog(o) end
+    -- fallback: notify
+    self:Notify({Title=o.Title or "Dialog", Content=o.Text or "", Duration=5})
 end
 
 function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) end end
 function WindowWrap:Show() if self._w.Show then self._w:Show() end end
 function WindowWrap:Hide() if self._w.Hide then self._w:Hide() end end
+function WindowWrap:Minimize() if self._w.Minimize then self._w:Minimize() end end
+function WindowWrap:SetTheme(name) pcall(function() redzlib:SetTheme(name) end) end
+function WindowWrap:Set(title, subtitle) if self._w.Set then self._w:Set(title, subtitle) end end
 
--- NEVAHUB floating open/close GUI button.
--- Rotating background image + static icon, draggable, hold 1s to lock,
--- click plays a sound and toggles the window.
+function WindowWrap:AddMinimizeButton(o)
+    if self._w.AddMinimizeButton then
+        return self._w:AddMinimizeButton(o or {Corner=UDim.new(0.5,0), Button={Image="rbxassetid://75841821715476"}})
+    end
+end
+
+-- Compatibility for old Minimizer API
+function WindowWrap:NewMinimizer(_)
+    local self_ref = self
+    local m = {}
+    function m:CreateMobileMinimizer(o)
+        self_ref:AddMinimizeButton(o)
+        -- also build custom floating button
+        pcall(function() self_ref:BuildFloatingButton() end)
+        return {}
+    end
+    return m
+end
+
+-- Custom floating button (Redz Hub style - circular with logo, draggable)
 function WindowWrap:BuildFloatingButton()
     if self._floatBuilt then return end
     self._floatBuilt = true
 
     local toggleGui = Instance.new("ScreenGui")
-    toggleGui.Name = "OpenUi"
+    toggleGui.Name = "FLUX_BYTE_OpenUi"
     toggleGui.ResetOnSpawn = false
     toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    toggleGui.IgnoreGuiInset = false
     toggleGui.DisplayOrder = 2147483647
-    -- parent safely (some executors need CoreGui / gethui)
+
     local parented = false
     pcall(function()
         toggleGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
         parented = true
     end)
     if not parented then
-        toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        toggleGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     end
 
-    local mainBtn = Instance.new("TextButton")
+    local mainBtn = Instance.new("ImageButton")
     mainBtn.Name = "OpenButton"
     mainBtn.Parent = toggleGui
-    mainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    mainBtn.BackgroundTransparency = 1
-    mainBtn.Position = UDim2.new(0.101969875, 0, 0.110441767, 0)
-    mainBtn.Size = UDim2.new(0, 64, 0, 42)
-    mainBtn.Text = ""
-    mainBtn.AutoButtonColor = false
-    mainBtn.Visible = true
-    Instance.new("UICorner", mainBtn)
+    mainBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    mainBtn.BackgroundTransparency = 0.1
+    mainBtn.BorderSizePixel = 0
+    mainBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
+    mainBtn.Size = UDim2.new(0, 55, 0, 55)
+    mainBtn.Image = "rbxassetid://75841821715476"
+    mainBtn.AutoButtonColor = true
+    Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(1, 0)
+    local stroke = Instance.new("UIStroke", mainBtn)
+    stroke.Color = Color3.fromRGB(180, 20, 30)
+    stroke.Thickness = 2
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-    local sizeBackMulti = 0.3
-
-    local backgroundImage = Instance.new("ImageLabel")
-    backgroundImage.Name = "RotatingBackground"
-    backgroundImage.Parent = mainBtn
-    backgroundImage.Size = UDim2.new(2.3 + sizeBackMulti, 0, 2.3 + sizeBackMulti, 0)
-    backgroundImage.Position = UDim2.new(0.5, 0, 0.5, 0)
-    backgroundImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    backgroundImage.BackgroundTransparency = 1
-    backgroundImage.Image = "rbxassetid://109694296016043"
-    backgroundImage.SizeConstraint = Enum.SizeConstraint.RelativeXX
-
-    local frontImage = Instance.new("ImageLabel")
-    frontImage.Name = "StaticIcon"
-    frontImage.Parent = mainBtn
-    frontImage.Size = UDim2.fromOffset(55, 55)
-    frontImage.Position = UDim2.new(0.5, 0, 0.5, 0)
-    frontImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    frontImage.BackgroundTransparency = 1
-    frontImage.Image = "rbxassetid://75841821715476"
-    frontImage.ZIndex = 1
-    Instance.new("UICorner", frontImage).CornerRadius = UDim.new(0.2, 0)
-
-    local rotation = 0
-    local rotSpeed = 90
-    local lastTime = tick()
-    task.spawn(function()
-        while toggleGui.Parent do
-            local now = tick()
-            local delta = now - lastTime
-            lastTime = now
-            rotation = (rotation + rotSpeed * delta) % 360
-            backgroundImage.Rotation = rotation
-            task.wait()
+    -- draggable
+    local dragging, dragInput, dragStart, startPos
+    mainBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainBtn.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    mainBtn.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            mainBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
 
-    -- draggable + hold-to-lock
-    local function MakeDraggableOpenUi(topbar, obj)
-        local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
-        local holdingDrag, holdToken = false, 0
-        obj:SetAttribute("Locked", false)
-        local function Update(input)
-            if obj:GetAttribute("Locked") then return end
-            local delta = input.Position - dragStart
-            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-        local function ToggleLock()
-            local newState = not obj:GetAttribute("Locked")
-            obj:SetAttribute("Locked", newState)
-            Fluent:Notify({ Title = newState and "Locked" or "Unlocked", Content = newState and "Locked in place" or "Can be moved", Duration = 2 })
-        end
-        topbar.InputBegan:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            dragging = not obj:GetAttribute("Locked")
-            holdingDrag = true
-            dragStart = input.Position
-            startPos = obj.Position
-            holdToken = holdToken + 1
-            local token = holdToken
-            task.delay(1.0, function()
-                if holdingDrag and token == holdToken then ToggleLock() end
-            end)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    holdingDrag = false
-                end
-            end)
-        end)
-        topbar.InputChanged:Connect(function(input)
-            if not dragStart then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                if (input.Position - dragStart).Magnitude > 6 then holdingDrag = false end
-                dragInput = input
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if input == dragInput and dragging then Update(input) end
-        end)
-    end
-    MakeDraggableOpenUi(mainBtn, mainBtn)
-
     local uiOpen = true
-    local function PlaySound(soundId)
-        pcall(function()
-            local sound = Instance.new("Sound")
-            sound.SoundId = "rbxassetid://" .. soundId
-            sound.Parent = game:GetService("SoundService")
-            sound:Play()
-            sound.Ended:Connect(function() sound:Destroy() end)
-        end)
-    end
-
     mainBtn.MouseButton1Click:Connect(function()
-        local sounds = { "7127123605", "438666542" }
-        PlaySound(sounds[math.random(#sounds)])
         uiOpen = not uiOpen
         if uiOpen then self:Show() else self:Hide() end
-
-        local function SmoothSpeed(target, dur)
-            local start = rotSpeed
-            local steps = 30
-            for i = 1, steps do
-                rotSpeed = start + (target - start) * (i / steps)
-                task.wait(dur / steps)
-            end
-            rotSpeed = target
-        end
-        task.spawn(function()
-            SmoothSpeed(360, 0.4); task.wait(0.5)
-            SmoothSpeed(180, 0.4); task.wait(0.3)
-            SmoothSpeed(90, 0.4)
-        end)
+        -- click tween
+        game:GetService("TweenService"):Create(mainBtn, TweenInfo.new(0.15), {Size = UDim2.new(0, 48, 0, 48)}):Play()
+        task.wait(0.15)
+        game:GetService("TweenService"):Create(mainBtn, TweenInfo.new(0.15), {Size = UDim2.new(0, 55, 0, 55)}):Play()
     end)
 
     self._floatingGui = toggleGui
     return mainBtn
 end
 
--- Minimizer: the GUI already minimizes with MinimizeKey. Provide stub objects
--- so the minimizer calls stay valid; the real open/close button is
--- the custom NEVAHUB floating button built inside MakeWindow.
-function WindowWrap:NewMinimizer(_)
-    local self_ref = self
-    local m = {}
-    function m:CreateMobileMinimizer(_)
-        self_ref:BuildFloatingButton()
-        return {}
-    end
-    return m
-end
-
--- ---- NEVAHUB GUI entry point --------------------------------------------
-local NevaLib = {}
-function NevaLib:MakeWindow(o)
-    -- NEVAHUB custom themes
-    pcall(function()
-        Fluent:RegisterCustomTheme("FluxByte", {
-            Accent = Color3.fromRGB(0, 190, 255),
-            AcrylicMain = Color3.fromRGB(6, 10, 18),
-            AcrylicBorder = Color3.fromRGB(40, 210, 255),
-            Text = Color3.fromRGB(235, 248, 255),
-            SubText = Color3.fromRGB(135, 175, 205),
-            Toggle = Color3.fromRGB(30, 42, 58),
-            ToggleToggled = Color3.fromRGB(40, 210, 255),
-            Slider = Color3.fromRGB(40, 210, 255),
-            Dropdown = Color3.fromRGB(15, 22, 35),
-            Button = Color3.fromRGB(10, 25, 42),
-            Input = Color3.fromRGB(9, 18, 30),
-        })
-    end)
-
-    local w = Fluent:CreateWindow({
-        Title = "Flux Byte Hub",
-        SubTitle = "Blox Fruits | Flux Byte",
-        Version = "Flux Byte â¢ v1.0",
-        TabWidth = 145,
-        Size = UDim2.fromOffset(680, 440),
-        Acrylic = true,
-        Theme = "FluxByte",
-        MinimizeKey = Enum.KeyCode.LeftControl,
-        Search = true,
-        Icons = "solar/planet-bold",
-        UserInfoTop = true,
-        UserInfoTitle = "Welcome to Flux Byte",
-        UserInfoSubtitle = LocalPlayer.DisplayName,
-        UserInfoColor = Color3.fromRGB(70, 220, 255),
+-- ---- FLUX BYTE GUI entry point ----
+local FluxLib = {}
+function FluxLib:MakeWindow(o)
+    -- Create Redz Hub window - signature Redz design
+    local w = redzlib:MakeWindow({
+        "FLUX BYTE",          -- Title (Redz Hub style)
+        "IS BACK | Redz Edition | Redz Edition", -- Subtitle
+        "FLUX_BYTE.json"      -- Save file
     })
-
-    pcall(function()
-        Fluent:SetErrorHandler(function(msg)
-            pcall(function()
-                Fluent:Notify({ Title = "Error", Content = tostring(msg), Type = "Error", Duration = 5 })
-            end)
-        end)
-    end)
+    
+    -- Force DarkRed theme (Redz Hub signature)
+    pcall(function() redzlib:SetTheme("DarkRed") end)
 
     local wrapped = setmetatable({ _w = w }, WindowWrap)
-    -- always create the floating open/close button
     pcall(function() wrapped:BuildFloatingButton() end)
-
-    -- Fix the player-avatar in the UserInfo card. The GUI fetches it with
-    -- Players:GetUserThumbnailAsync which frequently returns "" on first load,
-    -- leaving the avatar blank. Force a reliable rbxthumb:// image (client
-    -- resolves it directly from the UserId) into the UserInfo ImageLabel(s).
-    task.spawn(function()
-        local uid = LocalPlayer.UserId
-        local thumb = "rbxthumb://type=AvatarHeadShot&id=" .. uid .. "&w=150&h=150"
-        local function collectRoots()
-            local roots = {}
-            pcall(function() if gethui then table.insert(roots, gethui()) end end)
-            pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
-            pcall(function() table.insert(roots, LocalPlayer:FindFirstChild("PlayerGui")) end)
-            return roots
-        end
-        for attempt = 1, 20 do
-            local applied = false
-            pcall(function()
-                for _, root in ipairs(collectRoots()) do
-                    if root then
-                        for _, frame in ipairs(root:GetDescendants()) do
-                            if frame:IsA("Frame") and (frame.Name == "UserInfoTop" or frame.Name == "UserInfo") then
-                                for _, img in ipairs(frame:GetDescendants()) do
-                                    -- the avatar is the ImageLabel that has no ThemeTag icon color
-                                    -- (icons are tinted "SubText"); set any blank/thumb image.
-                                    if img:IsA("ImageLabel") then
-                                        local cur = img.Image or ""
-                                        if cur == "" or cur == "rbxassetid://0" or cur:find("rbxthumb") or cur:find("Thumbnail") then
-                                            img.Image = thumb
-                                            applied = true
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-            if applied then break end
-            task.wait(0.5)
-        end
-    end)
 
     return wrapped
 end
 
--- ================= Flux Byte window bootstrap =================
-local Window = NevaLib:MakeWindow({
-    Title = "Flux Byte Hub",
-    SubTitle = "Blox Fruits | Flux Byte",
-    SaveFolder = "fluxbyte.json"
+-- ================= FLUX BYTE window bootstrap (REDZ EDITION) =================
+local Window = FluxLib:MakeWindow({
+    Title = "FLUX BYTE",
+    SubTitle = "Premium | Redz Edition",
+    SaveFolder = "FLUX_BYTE.json"
 })
 
 local Minimizer = Window:NewMinimizer({
@@ -2115,180 +2056,80 @@ local Minimizer = Window:NewMinimizer({
 
 local MobileButton = Minimizer:CreateMobileMinimizer({
   Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(0, 170, 235)
+  BackgroundColor3 = Color3.fromRGB(180, 10, 20)
 })
 
 local Tabs = {
-    Info = Window:MakeTab({ Title = "Dashboard", Icon = "Info" }),
-    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "rbxassetid://7734053495" }),
-    Main = Window:MakeTab({ Title = "Farming", Icon = "rbxassetid://7733960981" }),
-    Settings = Window:MakeTab({ Title = "Settings", Icon = "rbxassetid://7734053495" }),
-    Fish = Window:MakeTab({ Title = "Fishing", Icon = "rbxassetid://127664059821666" }),
-    Quests = Window:MakeTab({ Title = "Quests & Items", Icon = "rbxassetid://13075622619" }),
-    SeaEvent = Window:MakeTab({ Title = "Sea Events", Icon = "waves" }),
-    Race = Window:MakeTab({ Title = "Race & Mirage", Icon = "rbxassetid://11162889532" }),
-    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "tent" }),
-    Esp = Window:MakeTab({ Title = "ESP & Stats", Icon = "rbxassetid://7040410130" }),
-    Raids = Window:MakeTab({ Title = "Raids & Fruits", Icon = "rbxassetid://11155986081" }),
-    Combat = Window:MakeTab({ Title = "Combat", Icon = "rbxassetid://13075651575" }),
-    Travel = Window:MakeTab({ Title = "Travel", Icon = "locate" }),
-    Shop = Window:MakeTab({ Title = "Shop", Icon = "rbxassetid://6031265976" }),
-    Misc = Window:MakeTab({ Title = "Misc", Icon = "rbxassetid://10709783577" })
+    Info = Window:MakeTab({ Title = "Info And Status", Icon = "info" }),
+    GUI_Settings = Window:MakeTab({ Title = "GUI Settings", Icon = "settings" }),
+    Main = Window:MakeTab({ Title = "Farming", Icon = "swords" }),
+    Settings = Window:MakeTab({ Title = "Setting", Icon = "settings-2" }),
+    Fish = Window:MakeTab({ Title = "Fishing", Icon = "fish" }),
+    Quests = Window:MakeTab({ Title = "Quest And Item", Icon = "scroll" }),
+    SeaEvent = Window:MakeTab({ Title = "Sea Event", Icon = "waves" }),
+    Race = Window:MakeTab({ Title = "Mirage And Race", Icon = "flame" }),
+    Prehistoric = Window:MakeTab({ Title = "Volcano Event", Icon = "tent" }),
+    Esp = Window:MakeTab({ Title = "Stats And Esp", Icon = "eye" }),
+    Raids = Window:MakeTab({ Title = "Fruit And Raid", Icon = "apple" }),
+    Combat = Window:MakeTab({ Title = "Local Player", Icon = "user" }),
+    Travel = Window:MakeTab({ Title = "Teleport", Icon = "map-pin" }),
+    Shop = Window:MakeTab({ Title = "Shopping", Icon = "shopping-cart" }),
+    Misc = Window:MakeTab({ Title = "Miscellaneous", Icon = "layout-grid" })
 }
 
--- =================== GUI SETTINGS TAB ===================
--- Flux Byte Interface tab.
--- (Window:SetTheme / Window:Notify / positional AddParagraph)
--- so every element behaves the same as in the standalone GUI file.
+-- =================== GUI SETTINGS TAB (REDZ EDITION) ===================
+do
+    local secThemes = Tabs.GUI_Settings:AddSection("Redz Hub Themes")
 
-local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
+    secThemes:AddParagraph({"Theme Info", "Redz Hub uses DarkRed as signature. Choose from 4 built-in themes."})
 
-secCustomTheme:AddButton({
-    Title = "Apply Flux Byte Theme", Icon = "solar/star-bold",
-    Callback = function()
-        Window:SetTheme("FluxByte")
-        Window:Notify({Title="Theme", Content="Flux Byte theme applied", Duration=2})
-    end,
-})
+    secThemes:AddButton({"Dark Theme - Blue Accent", function()
+        redzlib:SetTheme("Dark")
+        Window:Notify({Title="Theme", Content="Dark applied", Duration=2})
+    end})
 
-secCustomTheme:AddButton({
-    Title = "Apply Emeralddark", Icon = "solar/leaf-bold",
-    Callback = function()
-        Window:SetTheme("EmeraldDark")
-        Window:Notify({Title="Theme", Content="EmeraldDark applied", Duration=2})
-    end,
-})
+    secThemes:AddButton({"Darker Theme - Purple Accent", function()
+        redzlib:SetTheme("Darker")
+        Window:Notify({Title="Theme", Content="Darker applied", Duration=2})
+    end})
 
-secCustomTheme:AddButton({
-    Title = "Apply Sunset", Icon = "solar/sun-bold",
-    Callback = function()
-        Window:SetTheme("Sunset")
-        Window:Notify({Title="Theme", Content="Sunset applied", Duration=2})
-    end,
-})
+    secThemes:AddButton({"Purple Theme", function()
+        redzlib:SetTheme("Purple")
+        Window:Notify({Title="Theme", Content="Purple applied", Duration=2})
+    end})
 
-secCustomTheme:AddParagraph(
-    "Animated vs Static Comparison",
-    "SlateStatic and SlateAnimated share the exact same color palette. SlateStatic never animates regardless of the Animated Window toggle, because it has no ShineEnabled key at all. SlateAnimated sets ShineEnabled = true and follows the Animated Window toggle normally. Try opening a DropdownOutsideWindow on each to see the difference."
-)
+    secThemes:AddButton({"DarkRed Theme - Redz Signature [Default]", function()
+        redzlib:SetTheme("DarkRed")
+        Window:Notify({Title="Theme", Content="DarkRed - Redz Hub signature applied", Duration=2})
+    end})
 
-secCustomTheme:AddButton({
-    Title = "Apply SlateStatic (no animation support)", Icon = "solar/pause-circle-bold",
-    Callback = function()
-        Window:SetTheme("SlateStatic")
-        Window:Notify({Title="Theme", Content="SlateStatic applied â this theme never animates", Duration=3})
-    end,
-})
+    local secUI = Tabs.GUI_Settings:AddSection("UI Controls")
 
-secCustomTheme:AddButton({
-    Title = "Apply SlateAnimated (animation supported)", Icon = "solar/play-circle-bold",
-    Callback = function()
-        Window:SetTheme("SlateAnimated")
-        Window:Notify({Title="Theme", Content="SlateAnimated applied â try toggling Animated Window", Duration=3})
-    end,
-})
+    secUI:AddButton({"Minimize UI [LeftControl]", function()
+        Window:Minimize()
+    end})
 
-local secTheme = Tabs.GUI_Settings:AddSection("Builtin Themes")
+    secUI:AddButton({"Show UI", function()
+        Window:Show()
+    end})
 
-for _, name in ipairs({
-    "Amoled","Ash Gray","Blood Red","Cyanic","Amber Glow","Deep Violet",
-    "Neon Cyber","Neon Purple","Royal Blue","Deep Ocean","Rgb","Orange",
-    "Charcoal","Pearl White","Midnight","Galaxy Purple","Cosmic Violet",
-    "Cotton Candy","Arctic Frost",
-}) do
-    local n = name
-    secTheme:AddButton({
-        Title = n, Icon = "solar/palette-bold",
-        Callback = function()
-            Window:SetTheme(n)
-            Window:Notify({Title="Theme", Content=n .. " applied", Duration=2})
-        end,
-    })
+    secUI:AddParagraph({"Redz Hub Features", "â¢ Resizable & Draggable\nâ¢ 500+ Lucide Icons\nâ¢ Smooth Tween Animations\nâ¢ Auto-Save System\nâ¢ Mobile Friendly\nâ¢ Notification System"})
+
+    -- Config handling for Redz
+    Tabs.GUI_Settings:AddSection("Config")
+    Tabs.GUI_Settings:AddParagraph({"Auto Save", "Redz Hub automatically saves your toggles, sliders and dropdowns to FLUX_BYTE.json"})
 end
 
-pcall(function() secCustomTheme:AddDivider() end)
-
--- NEVAHUB config manager sections (interface / save / floating button / media).
--- Everything is kept inside ONE parent folder ("NEVAHUB") so the executor's
--- workspace stays clean instead of scattering separate folders around.
---
--- The config UI is BUILT here, but the actual autoload of saved settings is
--- DEFERRED to the end of the script: settings are restored by iterating over
--- every UI option, and the farm/feature toggles are created much further down,
--- so loading now would skip them. See NEVAHUB_DeferredAutoload() at the file end.
-NEVAHUB_DeferredAutoload = function() end -- replaced below if managers exist
-pcall(function()
-    local FluentTab = Tabs.GUI_Settings._t
-    local env = (getgenv and getgenv()) or _G
-    local MediaManager = MediaManager or env.MediaManager
-    local InterfaceManager = InterfaceManager or env.InterfaceManager
-    local SaveManager = SaveManager or env.SaveManager
-    local FloatingButtonManager = FloatingButtonManager or env.FloatingButtonManager
-    if MediaManager then
-        MediaManager:SetFolder("FluxByte/Media")
-    end
-    if InterfaceManager then
-        InterfaceManager:SetLibrary(Fluent)
-        InterfaceManager:SetFolder("FluxByte")
-        InterfaceManager:BuildInterfaceSection(FluentTab)
-        -- theme/interface options exist immediately, so this can load now
-        pcall(function() InterfaceManager:LoadSettings() end)
-    end
-    if SaveManager then
-        SaveManager:SetLibrary(Fluent)
-        SaveManager:SetFolder("FluxByte")
-        SaveManager:IgnoreThemeSettings()
-        SaveManager:BuildConfigSection(FluentTab)
-    end
-    if FloatingButtonManager then
-        FloatingButtonManager:SetLibrary(Fluent)
-        FloatingButtonManager:SetFolder("FluxByte/Floating")
-        FloatingButtonManager:BuildConfigSection(FluentTab)
-    end
-
-    -- Clean up the stray default folders the UI library creates at load time
-    -- (before our SetFolder calls) plus leftovers from older builds, so only
-    -- the single "NEVAHUB" folder remains. Only deletes them if they are empty
-    -- / safe, and only if the executor supports folder deletion.
-    pcall(function()
-        if not (isfolder and delfolder) then return end
-        local strays = { "FluentSettings", "FloatingButtons", "ImageCache", "FluentShowcase", "NEVAHUBv3" }
-        for _, name in ipairs(strays) do
-            if isfolder(name) then pcall(delfolder, name) end
-        end
-    end)
-
-    -- Deferred loader: run once every UI element exists.
-    NEVAHUB_DeferredAutoload = function()
-        if SaveManager then pcall(function() SaveManager:LoadAutoloadConfig() end) end
-        if FloatingButtonManager then pcall(function() FloatingButtonManager:LoadAutoloadConfig() end) end
-    end
-end)
--- ---- end GUI Settings tab ----
+-- Deferred autoload stub (Redz handles its own)
+FLUXBYTE_DeferredAutoload = function()
+    -- redzlib auto-loads from FLUX_BYTE.json
+end
 
 
-
--- =================== FLUX BYTE DASHBOARD ===================
-Tabs.Info:AddSection("Flux Byte Dashboard")
-local FluxWelcome = Tabs.Info:AddParagraph("FLUX BYTE", "Blox Fruits â¢ v1.0")
-local FluxStatus = Tabs.Info:AddParagraph("Status", "â Ready")
-local FluxTween = Tabs.Info:AddParagraph("Tween Speed", "180 studs/s")
-local FluxLevel = Tabs.Info:AddParagraph("Player Level", "Loading...")
-
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            FluxLevel:SetDesc("Level: " .. tostring(plr.Data.Level.Value))
-            FluxStatus:SetDesc(_G.Level and "â Auto Farm Active" or "â Ready")
-        end)
-    end
-end)
-
-Tabs.Info:AddSection("Information")
 
 Tabs.Info:AddDiscordInvite({
-	Title = "Flux Byte | Community",
-	Description = "Flux Byte community, updates, and support in one place.",
+	Title = "FLUX BYTE | Community",
+	Description = "A community for FLUX BYTE Users - official scripts, updates, and support in one place. Created by FLUX BYTE.",
 	Banner = "rbxassetid://75841821715476", 
 	Logo = "rbxassetid://75841821715476",
 	Invite = "https://discord.gg/GTMEDtwmva",
@@ -2632,94 +2473,69 @@ task.spawn(function()
                         return
                     end
                     
-                    -- If a different quest is active, abandon it and let the next loop select the
-                    -- correct level quest.
-                    if questUI.Visible and not string.find(QuestTitle, questData[1], 1, true) then
-                        pcall(function() replicated.Remotes.CommF_:InvokeServer("AbandonQuest") end)
-                        task.wait(0.25)
+                    if questUI.Visible and not string.find(QuestTitle, questData[1]) then
+                        replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
+                        task.wait(0.2)
                         return
                     end
 
-                    -- Quest acceptance used to get stuck at the quest giver because the old code
-                    -- required the player to be within 10 studs before firing StartQuest. Try the
-                    -- server call first; only move to the NPC when the quest still isn't accepted.
                     if not questUI.Visible then
-                        local accepted = false
-                        for _ = 1, 2 do
-                            pcall(function()
-                                local result = replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
-                                accepted = result ~= false
-                            end)
-                            task.wait(0.35)
-                            if questUI.Visible then break end
-                        end
-
-                        if not questUI.Visible then
-                            local questPos = questData[6]
-                            if questPos then
-                                _tp(questPos * CFrame.new(0, 3, 0))
-                                local deadline = tick() + 5
-                                repeat task.wait(0.15) until not _G.Level or questUI.Visible or tick() > deadline
-                                if _G.Level and not questUI.Visible then
-                                    pcall(function()
-                                        replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
-                                    end)
-                                    task.wait(0.6)
-                                end
+                        local questPos = questData[6]
+                        if questPos then
+                            _tp(questPos)
+                            task.wait(2)
+                            
+                            if (Root.Position - questPos.Position).Magnitude <= 10 then
+                                pcall(function()
+                                    replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
+                                end)
+                                task.wait(1)
                             end
-                        end
-
-                        if not questUI.Visible then
-                            task.wait(0.5)
+                        else
+                            pcall(function()
+                                replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
+                            end)
+                            task.wait(1)
                         end
                         return
                     end
 
                     local enemyName = questData[1]
+                    
                     local foundMob = false
-
-                    -- Always prioritize live workspace enemies. The previous version could stop
-                    -- after visiting a spawn point instead of continuing into the actual NPC.
                     for _, v in pairs(workspace.Enemies:GetChildren()) do
-                        if not _G.Level then break end
-                        if v.Name == enemyName and Attack.Alive(v) and v:FindFirstChild("HumanoidRootPart") then
+                        if v.Name == enemyName and Attack.Alive(v) then
                             foundMob = true
                             repeat
-                                if not _G.Level then break end
-                                task.wait(0.08)
-                                if v.Parent and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                                    _tp(v.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0))
-                                    Attack.Kill(v, _G.Level)
+                                task.wait(Sec)
+                                _tp(v.HumanoidRootPart.CFrame * CFrame.new(0,20,0))
+                                Attack.Kill(v, _G.Level)
+                                
+                                if not questUI.Visible then
+                                    break
                                 end
-                            until not _G.Level or not v.Parent or not v:FindFirstChild("Humanoid") or v.Humanoid.Health <= 0
+                            until not _G.Level or not v.Parent or v.Humanoid.Health <= 0
+                            task.wait(2) 
                         end
                     end
-
-                    -- Replicated NPC fallback.
+                    
                     if not foundMob then
                         for _, v in pairs(replicated:GetChildren()) do
-                            if v.Name == enemyName and Attack.Alive(v) and v:FindFirstChild("HumanoidRootPart") then
+                            if v.Name == enemyName and Attack.Alive(v) then
                                 foundMob = true
-                                _tp(v.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0))
+                                _tp(v.HumanoidRootPart.CFrame * CFrame.new(0,20,0))
                                 break
                             end
                         end
                     end
-
-                    -- If no NPC has spawned yet, go to its spawn marker and wait for the next
-                    -- loop instead of camping at the quest giver.
+                    
                     if not foundMob then
-                        local worldOrigin = workspace:FindFirstChild("_WorldOrigin")
-                        local enemySpawns = worldOrigin and worldOrigin:FindFirstChild("EnemySpawns")
-                        if enemySpawns then
-                            for _, spawnPoint in pairs(enemySpawns:GetChildren()) do
-                                if string.find(spawnPoint.Name, enemyName, 1, true) then
-                                    _tp(spawnPoint.CFrame * CFrame.new(0, 20, 0))
-                                    break
-                                end
+                        for _, spawnPoint in pairs(workspace["_WorldOrigin"].EnemySpawns:GetChildren()) do
+                            if string.find(spawnPoint.Name, enemyName) then
+                                _tp(spawnPoint.CFrame * CFrame.new(0, 20, 0))
+                                break
                             end
                         end
-                        task.wait(0.5)
                     end
                 end
             end)
@@ -5240,10 +5056,10 @@ FishingToggle = Tabs.Fish:AddToggle({
     end
 })
 
---local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Workspace = game:GetService("Workspace")
---local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local FishReplicated = ReplicatedStorage:WaitForChild("FishReplicated")
 local FishingRequest = FishReplicated:WaitForChild("FishingRequest")
 local Config = require(FishReplicated.FishingClient.Config)
@@ -7606,7 +7422,7 @@ local HopToggle = Tabs.Race:AddToggle({
 
                                     -- Hiá»n thá» thÃ´ng bÃ¡o vá»i jobid
                                     Window:Notify({
-                                        Title = "Flux Byte Hub",
+                                        Title = "FLUX BYTE",
                                         Content = "ÄÃ£ vÃ o server: " .. selected,
                                         Image = "rbxassetid://75841821715476",
                                         Duration = 5
@@ -11250,7 +11066,7 @@ end)
 
 Tabs.Raids:AddSection("Raids Dungeons")
 
---local plr = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local plr = game.Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local function GetHRP()
     local char = plr.Character
@@ -11790,9 +11606,9 @@ end)
 
 Tabs.Combat:AddSection("LocalPlayer Settings")
 
---local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local UserInputService = game:GetService("UserInputService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = game:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local UserInputService = game:GetService("UserInputService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = game:GetService("RunService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local player = Players.LocalPlayer
 
@@ -12463,3 +12279,920 @@ Name = "Buy Ghoul Race",
 Description = "",
 Callback = function()
   replicated.Remotes.CommF_:InvokeServer("Ectoplasm"," Change", 4)
+end})	
+Tabs.Shop:AddButton({
+Name = "Buy Cyborg Race (2.5k)", 
+Description = "",
+Callback = function()
+  replicated.Remotes.CommF_:InvokeServer("CyborgTrainer"," Buy")
+end})
+
+Tabs.Shop:AddButton({
+    Name = "Buy Draco Race",
+    Callback = function()
+        _tp(CFrame.new(5814.42724609375, 1208.3267822265625, 884.5785522460938))
+        local targetPosition = Vector3.new(5814.42724609375, 1208.3267822265625, 884.5785522460938)
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+        repeat wait()
+        until (character.HumanoidRootPart.Position - targetPosition).Magnitude < 1
+        local args = {
+            [1] = {
+                ["NPC"] = "Dragon Wizard",
+                ["Command"] = "DragonRace"
+            }
+        }
+        game:GetService("ReplicatedStorage").Modules.Net:FindFirstChild("RF/InteractDragonQuest"):InvokeServer(unpack(args))
+    end
+})
+
+Tabs.Misc:AddSection("Server - Function")
+Tabs.Misc:AddButton({
+    Name = "Redeem All Codes",
+    Description = "",
+    Callback = function()
+        local codes = {
+            "LIGHTNINGABUSE","1LOSTADMIN","ADMINFIGHT","GIFTING_HOURS","NOMOREHACK",
+            "BANEXPLOIT","WildDares","BossBuild","GetPranked","EARN_FRUITS",
+            "SUB2GAMERROBOT_RESET1","KITT_RESET","Bignews","CHANDLER","Fudd10",
+            "fudd10_v2","Sub2UncleKizaru","FIGHT4FRUIT","kittgaming","TRIPLEABUSE",
+            "Sub2CaptainMaui","Sub2Fer999","Enyu_is_Pro","Magicbus","JCWK",
+            "Starcodeheo","Bluxxy","SUB2GAMERROBOT_EXP1","Sub2NoobMaster123",
+            "Sub2Daigrock","Axiore","TantaiGaming","StrawHatMaine","Sub2OfficialNoobie",
+            "TheGreatAce","JULYUPDATE_RESET","ADMINHACKED","SEATROLLING","24NOADMIN",
+            "ADMIN_TROLL","NEWTROLL","SECRET_ADMIN","staffbattle","NOEXPLOIT",
+            "NOOB2ADMIN","CODESLIDE","fruitconcepts","krazydares"
+        }
+
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local RemotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+        local RedeemRemote = RemotesFolder:FindFirstChild("Redeem")
+
+        if not RedeemRemote then
+            return
+        end
+
+        for _, code in ipairs(codes) do
+            task.wait(0)
+            pcall(function()
+                if RedeemRemote.InvokeServer then
+                    RedeemRemote:InvokeServer(code)
+                else
+                    RedeemRemote:FireServer(code)
+                end
+            end)
+        end
+    end
+})
+Tabs.Misc:AddButton({
+Name = "Rejoin Server", 
+Description = "",
+Callback = function()
+  game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+end})
+Tabs.Misc:AddButton({
+    Name = "Hop Server",
+    Description = "",
+    Callback = function()
+        task.spawn(function()
+            local HttpService = game:GetService("HttpService")
+            local TeleportService = game:GetService("TeleportService")
+            local PlaceId = game.PlaceId
+            local Players = game:GetService("Players")
+
+            local success, servers = pcall(function()
+                local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+                local response = game:HttpGet(url)
+                return HttpService:JSONDecode(response).data
+            end)
+
+            if success and servers then
+                local targetServer
+                for _, s in pairs(servers) do
+                    if s.playing < s.maxPlayers then
+                        targetServer = s.id
+                    end
+                end
+
+                if targetServer then
+                    pcall(function()
+                        TeleportService:TeleportToPlaceInstance(PlaceId, targetServer, Players.LocalPlayer)
+                    end)
+                end
+            end
+        end)
+    end
+})
+Tabs.Misc:AddButton({
+Name = "Hop to Lowest Players", 
+Description = "",
+Callback = function()
+  local Http = game:GetService("HttpService")
+  local TPS = game:GetService("TeleportService")
+  local Api = "https://games.roblox.com/v1/games/"
+  local _place = game.PlaceId
+  local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
+   function ListServers(cursor)
+     local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+     return Http:JSONDecode(Raw)
+   end
+   local Server, Next; repeat
+   local Servers = ListServers(Next)
+   Server = Servers.data[1]
+   Next = Servers.nextPageCursor
+  until Server
+  TPS:TeleportToPlaceInstance(_place,Server.id,plr)
+end})
+
+Tabs.Misc:AddButton({
+Name = "Hop to Lowest Pings Server", 
+Description = "",
+Callback = function()
+local HTTPService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local StatsService = game:GetService("Stats")
+local function fetchServersData(placeId, limit)
+    local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?limit=%d", placeId, limit)
+    local success, response = pcall(function()
+        return HTTPService:JSONDecode(game:HttpGet(url))
+    end)
+  if success and response and response.data then
+	return response.data
+  end
+    return nil
+  end
+  local placeId = game.PlaceId
+  local serverLimit = 100
+  local servers = fetchServersData(placeId, serverLimit)
+  if not servers then return end
+  local lowestPingServer = servers[1]
+  for _, server in pairs(servers) do
+    if server["ping"] < lowestPingServer["ping"] and server.maxPlayers > server.playing then
+      lowestPingServer = server
+    end
+  end
+  local commonLoadTime = 0.5
+  task.wait(commonLoadTime)
+  local pingThreshold = 100
+  local serverStats = StatsService.Network.ServerStatsItem
+  local dataPing = serverStats["Data Ping"]:GetValueString()
+  local pingValue = tonumber(dataPing:match("(%d+)"))
+  if pingValue >= pingThreshold then
+    TeleportService:TeleportToPlaceInstance(placeId, lowestPingServer.id)
+  else
+  end
+end})
+
+--local replicated = game:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+
+Tabs.Misc:AddTextBox({
+    Name = "Input Job Id",
+    Placeholder = "Job ID",
+    ClearOnFocus = true,
+    Callback = function(Value)
+        getgenv().Job = Value
+    end
+})
+
+Tabs.Misc:AddButton({
+    Name = "Teleport [Job ID]", 
+    Callback = function()
+        if getgenv().Job and getgenv().Job ~= "" then
+            game:GetService("TeleportService")
+                :TeleportToPlaceInstance(
+                    game.PlaceId,
+                    getgenv().Job,
+                    game.Players.LocalPlayer
+                )
+        end
+    end
+})
+Tabs.Misc:AddButton({
+Name = "Copy JobID", 
+Description = "",
+Callback = function()
+  setclipboard(tostring(game.JobId))
+end})
+
+Tabs.Misc:AddSection("Player Gui / Others")
+
+Tabs.Misc:AddButton({
+Name = "Open Awakenings Expert", 
+Description = "",
+Callback = function()
+  plr.PlayerGui.Main.AwakeningToggler.Visible = true
+end})
+Tabs.Misc:AddButton({
+Name = "Open Title Selection", 
+Description = "",
+Callback = function()
+  replicated.Remotes.CommF_:InvokeServer("getTitles",true)
+  plr.PlayerGui.Main.Titles.Visible = true
+end})
+DisbleChat = Tabs.Misc:AddToggle({
+Name = "Disable Chat GUI", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  _G.Rechat = Value
+  if  _G.Rechat == true then
+    local StarterGui = game:GetService('StarterGui')
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)    
+  elseif _G.chat == false then
+    local StarterGui = game:GetService('StarterGui')
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)    
+  end
+end
+})
+DisbleLeaderB = Tabs.Misc:AddToggle({
+Name = "Disable Leader Board GUI", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  ReLeader = Value
+  if ReLeader == true then
+    local StarterGui = game:GetService('StarterGui')
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)   
+  elseif ReLeader == false then
+    local StarterGui = game:GetService('StarterGui')
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)   
+  end
+end
+})
+Tabs.Misc:AddButton({
+Name = "Set Pirate Team", 
+Description = "",
+Callback = function()
+  Pirates()
+end})  
+Tabs.Misc:AddButton({
+Name = "Set Marine Team", 
+Description = "",
+Callback = function()
+  Marines()
+end})
+UnPortal = Tabs.Misc:AddToggle({
+Name = "Unlock All Portals", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  _G.PortalUnLock = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    pcall(function()
+      if _G.PortalUnLock then        
+         if Attack.Pos(CstlePos_Miti,8) then
+           replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-12471.169921875, 374.94024658203, -7551.677734375))
+         elseif Attack.Pos(Man3Pos_Miti,8) then
+           replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-5072.08984375, 314.5412902832, -3151.1098632812))
+         elseif Attack.Pos(HydraPos_Miti,8) then                    
+           replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(5748.7587890625, 610.44982910156, -267.81704711914))
+         elseif Attack.Pos(HydratoCastle,8) then                   
+           replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(-5072.08984375, 314.5412902832, -3151.1098632812))
+        end
+      end
+    end)
+  end
+end)
+
+Tabs.Misc:AddSection("Graphics / Haki Stats")
+
+HakiSt = {"State 0","State 1","State 2","State 3","State 4","State 5"}
+HakiStat = Tabs.Misc:AddDropdown({
+Name = "Select Haki States",
+Options = HakiSt,
+Callback = function(Value)
+  _G.SelectStateHaki = Value
+end})
+Tabs.Misc:AddButton({
+Name = "ChangeBusoStage", 
+Description = "",
+Callback = function()
+  if _G.SelectStateHaki == "State 0" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",0)
+  elseif _G.SelectStateHaki == "State 1" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",1)
+  elseif _G.SelectStateHaki == "State 2" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",2)
+  elseif _G.SelectStateHaki == "State 3" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",3)
+  elseif _G.SelectStateHaki == "State 4" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",4)
+  elseif _G.SelectStateHaki == "State 5" then
+    replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage",5)
+  end
+end})
+rtxM = Tabs.Misc:AddToggle({
+Name = "Turn on RTX Mode", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  _G.RTXMode = Value
+  local a = game.Lighting
+  local c = Instance.new("ColorCorrectionEffect", a)
+  local e = Instance.new("ColorCorrectionEffect", a)
+  OldAmbient = a.Ambient
+  OldBrightness = a.Brightness
+  OldColorShift_Top = a.ColorShift_Top
+  OldBrightnessc = c.Brightness
+  OldContrastc = c.Contrast
+  OldTintColorc = c.TintColor
+  OldTintColore = e.TintColor    
+  if not _G.RTXMode then return end
+  while _G.RTXMode do wait()
+    a.Ambient = Color3.fromRGB(33, 33, 33)
+    a.Brightness = 0.3
+    c.Brightness = 0.176
+    c.Contrast = 0.39
+    c.TintColor = Color3.fromRGB(217, 145, 57)
+    game.Lighting.FogEnd = 999
+    if not plr.Character.HumanoidRootPart:FindFirstChild("PointLight") then
+      local a2 = Instance.new("PointLight")
+      a2.Parent = plr.Character.HumanoidRootPart
+      a2.Range = 15
+      a2.Color = Color3.fromRGB(217, 145, 57)
+    end
+    if not _G.RTXMode then
+      a.Ambient = OldAmbient
+      a.Brightness = OldBrightness
+      a.ColorShift_Top = OldColorShift_Top
+      c.Contrast = OldContrastc
+      c.Brightness = OldBrightnessc
+      c.TintColor = OldTintColorc
+      e.TintColor = OldTintColore
+      game.Lighting.FogEnd = 2500
+      plr.Character.HumanoidRootPart:FindFirstChild("PointLight"):Destroy()
+    end
+  end
+end
+})
+Tabs.Misc:AddButton({
+Name = "Turn on Fast Mode", 
+Description = "",
+Callback = function()
+  for _,zx in next, workspace:GetDescendants() do
+  if table.find(Past, zx.ClassName) then  zx.Material = "Plastic" end
+  end
+end})
+Tabs.Misc:AddButton({
+Name = "Turn on Low CPU", 
+Description = "",
+Callback = function()
+  LowCpu()
+end})
+Tabs.Misc:AddButton({
+Name = "Turn on increase Boats", 
+Description = "",
+Callback = function()
+  for _, v in pairs(workspace.Boats:GetDescendants()) do
+    if table.find(ListSeaBoat, v.Name) and tostring(v.Owner.Value) == tostring(plr.Name) then              
+      v.VehicleSeat.MaxSpeed = 350
+      v.VehicleSeat.Torque = 0.2
+      v.VehicleSeat.TurnSpeed = 5
+      v.VehicleSeat.HeadsUpDisplay = true
+    end
+  end
+end})
+Tabs.Misc:AddButton({
+Name = "Remove Sky Fog", 
+Description = "",
+Callback = function()
+  if Lighting:FindFirstChild("LightingLayers") then Lighting.LightingLayers:Destroy() end
+  if Lighting:FindFirstChild("SeaTerrorCC") then Lighting.SeaTerrorCC:Destroy() end
+  if Lighting:FindFirstChild("FantasySky") then Lighting.FantasySky:Destroy() end
+end})
+
+Tabs.Misc:AddSection("Configure - God")
+Tabs.Misc:AddButton({
+Name = "Rain Fruits (Client)", 
+Description = "",
+Callback = function()
+  for i, v in pairs(game:GetObjects("rbxassetid://14759368201")[1]:GetChildren()) do
+    v.Parent = game.Workspace.Map
+    v:MoveTo(plr.Character.PrimaryPart.Position + Vector3.new(math.random(-50, 50), 100, math.random(-50, 50)))
+    if v.Fruit:FindFirstChild("AnimationController") then
+      v.Fruit:FindFirstChild("AnimationController"):LoadAnimation(v.Fruit:FindFirstChild("Idle")):Play()
+    end
+    v.Handle.Touched:Connect(function(otherPart)
+      if otherPart.Parent == plr.Character then
+        v.Parent = plr.Backpack
+        plr.Character.Humanoid:EquipTool(v)
+      end
+    end)
+  end
+end})
+briggt1 = Tabs.Misc:AddToggle({
+Name = "Turn on Full Bright", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  bright = Value
+  if Value == true then
+    Lighting.Ambient = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Top = Color3.new(1, 1, 1)
+  else
+    Lighting.Ambient = Color3.new(0, 0, 0)
+    Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
+    Lighting.ColorShift_Top = Color3.new(0, 0, 0)
+  end  
+end
+})
+
+
+DayN = Tabs.Misc:AddDropdown({
+Name = "Select Time",
+Description = "",
+Options = {"Day", "Night"},
+Default = Day,
+Callback = function(Value)
+  _G.SelectDN = Value
+end})
+dayornight = Tabs.Misc:AddToggle({
+Name = "Turn on Time", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  _G.daylightN = Value
+end})
+task.spawn(function()
+  while task.wait() do
+    if _G.daylightN then
+      if _G.SelectDN == "Day" then
+        Lighting.ClockTime = 12
+      elseif _G.SelectDN == "Night" then
+        Lighting.ClockTime = 0
+      end
+    end
+  end
+end)
+walkWater = Tabs.Misc:AddToggle({
+Name = "Turn on Walk on Water", 
+Description = "", 
+Default = true,
+Callback = function(Value)
+  _G.WalkWater_Part = Value
+  if _G.WalkWater_Part then
+    game:GetService("Workspace").Map["WaterBase-Plane"].Size = Vector3.new(1000, 112, 1000)
+  else
+    game:GetService("Workspace").Map["WaterBase-Plane"].Size = Vector3.new(1000, 80, 1000)
+  end
+end
+})
+iceWalk = Tabs.Misc:AddToggle({
+Name = "Turn on Ice Walk", 
+Description = "", 
+Default = false,
+Callback = function(Value)
+  _G.WalkWater = Value
+end})
+spawn(function()
+  while task.wait() do
+    if _G.WalkWater then
+      pcall(function()
+	   if plr.Character and plr.Character:FindFirstChild("LeftFoot") then
+	   local upval0 = replicated.Assets.Models.IceSpikes4:Clone()
+        upval0.Parent = workspace
+        upval0.Size = Vector3.new(3+math.random(10,12),1.7,3+math.random(10,12))
+        upval0.Color = Color3.fromRGB(128,187,219)
+        upval0.CFrame = CFrame.new(plr.Character.Head.Position.X,-3.8,plr.Character.Head.Position.Z)*CFrame.Angles((math.random()-0.5)*0.06, math.random()*7,(math.random()-0.5)*0.07)
+        local var85={};
+        var85.Size=Vector3.new(0,0.3,0)
+        local var3=TW:Create(upval0,TweenInfo.new(2,Enum.EasingStyle.Quad,Enum.EasingDirection.In),var85)
+        var3.Completed:Connect(function()
+          upval0:Destroy()
+        end)
+          var3:Play()
+	    end	
+      end)
+    end
+  end
+end)
+--local player = game.Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+local function IsEntityAlive(entity)
+    if not entity then return false end
+    local humanoid = entity:FindFirstChild("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+local function GetEnemiesInRange(character, range)
+    local enemies = game:GetService("Workspace").Enemies:GetChildren()
+    local players = game:GetService("Players"):GetPlayers()
+    local targets = {}
+    local playerPos = character:GetPivot().Position
+    for _, enemy in ipairs(enemies) do
+        local rootPart = enemy:FindFirstChild("HumanoidRootPart")
+        if rootPart and IsEntityAlive(enemy) then
+            local distance = (rootPart.Position - playerPos).Magnitude
+            if distance <= range then
+                table.insert(targets, enemy)
+            end
+        end
+    end
+    for _, otherPlayer in ipairs(players) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local rootPart = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart and IsEntityAlive(otherPlayer.Character) then
+                local distance = (rootPart.Position - playerPos).Magnitude
+                if distance <= range then
+                    table.insert(targets, otherPlayer.Character)
+                end
+            end
+        end
+    end
+    return targets
+end
+function AttackNoCoolDown()
+    local player = game:GetService("Players").LocalPlayer
+    local character = player.Character
+    if not character then return end
+    local equippedWeapon = nil
+    for _, item in ipairs(character:GetChildren()) do
+        if item:IsA("Tool") then
+            equippedWeapon = item
+            break
+        end
+    end
+    if not equippedWeapon then return end
+    local enemiesInRange = GetEnemiesInRange(character, 60)
+    if #enemiesInRange == 0 then return end
+    local storage = game:GetService("ReplicatedStorage")
+    local modules = storage:FindFirstChild("Modules")
+    if not modules then return end
+    local attackEvent = storage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterAttack")
+    local hitEvent = storage:WaitForChild("Modules"):WaitForChild("Net"):WaitForChild("RE/RegisterHit")
+    if not attackEvent or not hitEvent then return end
+    local targets, mainTarget = {}, nil
+    for _, enemy in ipairs(enemiesInRange) do
+        if not enemy:GetAttribute("IsBoat") then
+            local HitboxLimbs = {"RightLowerArm", "RightUpperArm", "LeftLowerArm", "LeftUpperArm", "RightHand", "LeftHand"}
+            local head = enemy:FindFirstChild(HitboxLimbs[math.random(#HitboxLimbs)]) or enemy.PrimaryPart
+            if head then
+                table.insert(targets, { enemy, head })
+                mainTarget = head
+            end
+        end
+    end
+    if not mainTarget then return end
+    attackEvent:FireServer(0)
+    local playerScripts = player:FindFirstChild("PlayerScripts")
+    if not playerScripts then return end
+    local localScript = playerScripts:FindFirstChildOfClass("LocalScript")
+    while not localScript do
+        playerScripts.ChildAdded:Wait()
+        localScript = playerScripts:FindFirstChildOfClass("LocalScript")
+    end
+    local hitFunction
+    if getsenv then
+        local success, scriptEnv = pcall(getsenv, localScript)
+        if success and scriptEnv then
+            hitFunction = scriptEnv._G.SendHitsToServer
+        end
+    end
+    local successFlags, combatRemoteThread = pcall(function()
+        return require(modules.Flags).COMBAT_REMOTE_THREAD or false
+    end)
+    if successFlags and combatRemoteThread and hitFunction then
+        hitFunction(mainTarget, targets)
+    elseif successFlags and not combatRemoteThread then
+        hitEvent:FireServer(mainTarget, targets)
+    end
+end
+CameraShakerR = require(game.ReplicatedStorage.Util.CameraShaker)
+CameraShakerR:Stop()
+get_Monster=function()for a,b in pairs(workspace.Enemies:GetChildren())do local c=b:FindFirstChild("UpperTorso")or b:FindFirstChild("Head")if b:FindFirstChild("HumanoidRootPart",true)and c then if(b.Head.Position-plr.Character.HumanoidRootPart.Position).Magnitude<=50 then return true,c.Position end end end;for a,d in pairs(workspace.SeaBeasts:GetChildren())do if d:FindFirstChild("HumanoidRootPart")and d:FindFirstChild("Health")and d.Health.Value>0 then return true,d.HumanoidRootPart.Position end end;for a,d in pairs(workspace.Enemies:GetChildren())do if d:FindFirstChild("Health")and d.Health.Value>0 and d:FindFirstChild("VehicleSeat")then return true,d.Engine.Position end end end
+Actived=function()local a=game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")for b,c in next,getconnections(a.Activated)do if typeof(c.Function)=='function'then getupvalues(c.Function)end end end
+task.spawn(function()
+  RunSer.Heartbeat:Connect(function()
+    pcall(function()      
+      if not _G.Seriality then return end      
+      AttackNoCoolDown() 
+      local Pretool = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
+      local ToolTip = Pretool.ToolTip
+      local MobAura, Mon = get_Monster()      
+      if ToolTip == "Blox Fruit" then
+        if MobAura then           
+          local LeftClickRemote = Pretool:FindFirstChild('LeftClickRemote');
+          if LeftClickRemote then Actived() LeftClickRemote:FireServer(Vector3.new(0.01,-500,0.01),1,true);LeftClickRemote:FireServer(false)end
+        end     		                         
+      end      
+    end)
+  end)
+end)
+local FastAttackModule = {}
+local HitRegistrationModule = {}
+local MainController = {}
+
+local GameService = game
+--local Players = GameService:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = GameService:GetService("RunService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Workspace = GameService:GetService("Workspace") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+
+--local LocalPlayer = Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+local function SafeWaitForChild(parent, childName)
+    local success, result = pcall(function()
+        return parent:WaitForChild(childName)
+    end)
+    return result
+end
+
+local Enemies = SafeWaitForChild(Workspace, "Enemies")
+local Characters = SafeWaitForChild(Workspace, "Characters")
+local Modules = SafeWaitForChild(ReplicatedStorage, "Modules")
+local Net = SafeWaitForChild(Modules, "Net")
+
+FastAttackModule.Rate = 0.000000002
+FastAttackModule.Enabled = true
+
+function FastAttackModule.IsAlive(target)
+    local humanoid = target:FindFirstChild("Humanoid")
+    if humanoid and humanoid.Health > 0 then
+        return true
+    end
+    return false
+end
+
+function FastAttackModule.GetNearbyTargets(character, folder)
+    local characterPosition = character:GetPivot().Position
+    local nearbyTargets = {}
+    local children = folder:GetChildren()
+    
+    for i = 1, #children do
+        local target = children[i]
+        local humanoid = target:FindFirstChild("Humanoid")
+        local rootPart = target:FindFirstChild("HumanoidRootPart")
+        
+        if humanoid and rootPart and humanoid.Health > 0 then
+            local distance = (rootPart.Position - characterPosition).Magnitude
+            if distance <= 60 then
+                table.insert(nearbyTargets, target)
+            end
+        end
+    end
+    return nearbyTargets
+end
+
+function FastAttackModule.GetTargetParts(targetList)
+    local result = {}
+    local count = #targetList
+    
+    for i = 1, count do
+        local target = targetList[i]
+        local head = target:FindFirstChild("Head") or target.PrimaryPart
+        if head then
+            table.insert(result, {target, head})
+        end
+    end
+    return result
+end
+
+function FastAttackModule.GetAllTargets(character)
+    local enemies = FastAttackModule.GetNearbyTargets(character, Enemies)
+    local otherCharacters = FastAttackModule.GetNearbyTargets(character, Characters)
+    
+    local allTargets = {}
+    for i = 1, #enemies do
+        table.insert(allTargets, enemies[i])
+    end
+    for i = 1, #otherCharacters do
+        table.insert(allTargets, otherCharacters[i])
+    end
+    return allTargets
+end
+
+function FastAttackModule.ExecuteFastAttack()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    local targets = FastAttackModule.GetAllTargets(character)
+    if #targets < 1 then return end
+    
+    local targetParts = FastAttackModule.GetTargetParts(targets)
+    if #targetParts < 1 then return end
+    
+    local attackRemote = Net["RE/RegisterAttack"]
+    local hitRemote = Net["RE/RegisterHit"]
+    
+    attackRemote:FireServer(FastAttackModule.Rate)
+    local targetHead = targetParts[1][2]
+    hitRemote:FireServer(targetHead, targetParts)
+end
+
+local AttackRemoteTarget
+local AttackRemoteId
+
+local function InitializeHitRegistration()
+    local foldersToCheck = {
+        ReplicatedStorage.Util,
+        ReplicatedStorage.Common,
+        ReplicatedStorage.Remotes,
+        ReplicatedStorage.Assets,
+        ReplicatedStorage.FX
+    }
+
+    for _, folder in ipairs(foldersToCheck) do
+        local children = folder:GetChildren()
+        
+        for _, child in ipairs(children) do
+            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
+                AttackRemoteTarget = child
+                AttackRemoteId = child:GetAttribute("Id")
+            end
+        end
+
+        folder.ChildAdded:Connect(function(child)
+            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
+                AttackRemoteTarget = child
+                AttackRemoteId = child:GetAttribute("Id")
+            end
+        end)
+    end
+end
+
+InitializeHitRegistration()
+
+function HitRegistrationModule.Execute()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local hitTargets = {}
+
+    local function ScanFolder(folder)
+        local children = folder:GetChildren()
+        for i = 1, #children do
+            local target = children[i]
+            local humanoid = target:FindFirstChild("Humanoid")
+            local rootPart = target:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and rootPart and humanoid.Health > 0 and target ~= character then
+                local distance = (rootPart.Position - humanoidRootPart.Position).Magnitude
+                if distance <= 60 then
+                    local targetChildren = target:GetChildren()
+                    for _, child in ipairs(targetChildren) do
+                        if child:IsA("BasePart") then
+                            table.insert(hitTargets, {target, child})
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    ScanFolder(Enemies)
+    ScanFolder(Characters)
+
+    local tool = character:FindFirstChildOfClass("Tool")
+    
+    if #hitTargets > 0 and tool and (tool:GetAttribute("WeaponType") == "Melee" or tool:GetAttribute("WeaponType") == "Sword") then
+        local seed = Modules.Net.seed:InvokeServer()
+        
+        local attackRemote = Net["RE/RegisterAttack"]
+        local hitRemote = Net["RE/RegisterHit"]
+        
+        attackRemote:FireServer()
+        
+        local targetHead = hitTargets[1][1]:FindFirstChild("Head")
+        if not targetHead then return end
+
+        hitRemote:FireServer(targetHead, hitTargets, {})
+        
+        if AttackRemoteTarget then
+            local remoteCode = "RE/RegisterHit"
+            local encryptionKey = math.floor(Workspace:GetServerTimeNow() / 10 % 10) + 1
+            
+            local encodedString = string.gsub(remoteCode, ".", function(char)
+                return string.char(bit32.bxor(string.byte(char), encryptionKey))
+            end)
+
+            local finalId = bit32.bxor(AttackRemoteId + 909090, seed * 2)
+            
+            cloneref(AttackRemoteTarget):FireServer(
+                encodedString,
+                finalId,
+                targetHead,
+                hitTargets
+            )
+        end
+    end
+end
+
+local function DisableCameraShake()
+    local cameraModule = require(ReplicatedStorage.Util.CameraShaker)
+    cameraModule:Stop()
+end
+
+local function StartMainLoops()
+    task.spawn(function()
+        while task.wait(FastAttackModule.Rate) do
+            FastAttackModule.ExecuteFastAttack()
+        end
+    end)
+
+    RunService.Heartbeat:Connect(function()
+        pcall(HitRegistrationModule.Execute)
+    end)
+end
+
+StartMainLoops()
+
+-- Restore all saved settings now that EVERY toggle/slider/dropdown exists in
+-- Fluent.Options. This is what actually makes Auto Farm and other toggles come
+-- back ON after a rejoin (previously autoload ran before these were created).
+pcall(function()
+    if type(FLUXBYTE_DeferredAutoload) == "function" then
+        FLUXBYTE_DeferredAutoload()
+    end
+end)
+
+-- ========================================
+-- FLUX BYTE AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
+-- Auto-manages a config named "FLUX BYTE Config":
+--   * ensure it exists + is set as the autoload config,
+--   * re-save it automatically a couple seconds after ANY option changes,
+--   * and periodically as a safety net.
+-- All guarded so missing SaveManager / file funcs never break the script.
+-- ========================================
+pcall(function()
+    local env = (getgenv and getgenv()) or _G
+    local SaveManager = SaveManager or env.SaveManager
+    if not (SaveManager and writefile and isfile) then return end
+
+    local AUTO_NAME = "FLUX BYTE Config"
+    local folder = SaveManager.Folder or "FLUX BYTE"
+    local autoPath = folder .. "/settings/autoload.txt"
+
+    local function ensureAutoloadFlag()
+        pcall(function()
+            -- point Fluent's autoload at our managed config
+            if (not isfile(autoPath)) or readfile(autoPath) ~= AUTO_NAME then
+                writefile(autoPath, AUTO_NAME)
+            end
+        end)
+    end
+
+    local function doSave()
+        pcall(function() SaveManager:Save(AUTO_NAME) end)
+        ensureAutoloadFlag()
+    end
+
+    -- create the config file on first run so autoload has something to read
+    ensureAutoloadFlag()
+    doSave()
+
+    -- debounced save: fire ~2s after the last option change
+    local pending = false
+    local function scheduleSave()
+        if pending then return end
+        pending = true
+        task.delay(2, function()
+            pending = false
+            doSave()
+        end)
+    end
+
+    -- hook every stateful option's change signal if available.
+    -- Fluent stores the element's real logic in opt.Callback and a SEPARATE
+    -- opt.Changed slot (set via :OnChanged). We chain onto opt.Changed so we
+    -- never clobber the farm callback OR any pre-existing Changed handler.
+    pcall(function()
+        local opts = SaveManager.Options or (Fluent and Fluent.Options)
+        if type(opts) == "table" then
+            for idx, opt in pairs(opts) do
+                if type(opt) == "table" and not tostring(idx):find("SaveManager_") then
+                    local prev = opt.Changed
+                    if type(opt.OnChanged) == "function" then
+                        pcall(function()
+                            opt:OnChanged(function(val)
+                                if type(prev) == "function" then pcall(prev, val) end
+                                scheduleSave()
+                            end)
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+
+    -- periodic safety-net save every 20s (covers options without a change signal)
+    task.spawn(function()
+        while task.wait(20) do
+            doSave()
+        end
+    end)
+end)
+
+Window:Notify({
+  Title = "FLUX BYTE",
+  Content = "FLUX BYTE is back - created by FLUX BYTE",
+  Image = "rbxassetid://75841821715476",
+  Duration = 5
+})
