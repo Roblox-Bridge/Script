@@ -494,7 +494,7 @@ end
 -- loaded -- i.e. "the script cannot be executed" for some people while it
 -- runs fine for you. Now it degrades to no aim-hook instead of dying.
 if not (getrawmetatable and setreadonly and newcclosure and getnamecallmethod) then
-  warn("[NEVAHUB] executor lacks metatable hook API; aim/mouse-position hook disabled")
+  warn("[Flux Byte] executor lacks metatable hook API; aim/mouse-position hook disabled")
 else
 pcall(function()
 local gg = getrawmetatable(game)
@@ -1153,20 +1153,9 @@ _tp = function(target)
         end
     end
     
-    -- Flux Byte movement: one active tween at a time, fixed at 180 studs/s.
-    shouldTween = true
-    pcall(function()
-        if _G.FluxByteActiveTween and _G.FluxByteActiveTween.PlaybackState == Enum.PlaybackState.Playing then
-            _G.FluxByteActiveTween:Cancel()
-        end
-    end)
-
     local distance = (gg.Position - rootPart.Position).Magnitude
-    local TWEEN_SPEED = 180
-    local tweenDuration = math.max(distance / TWEEN_SPEED, 0.05)
-    local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear)
-    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})
-    _G.FluxByteActiveTween = tween    
+    local tweenInfo = TweenInfo.new(distance / 300, Enum.EasingStyle.Linear)
+    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})    
     
     if plr.Character.Humanoid.Sit == true then
         block.CFrame = CFrame.new(block.Position.X, gg.Y, block.Position.Z)
@@ -1199,13 +1188,8 @@ end
 -- when called with a falsy/absent value it simply cancels tweening.
 StopTween = function(state)
     if state == nil then state = true end
+    -- flipping shouldTween off makes the _tp watcher cancel the running tween
     shouldTween = false
-    pcall(function()
-        if _G.FluxByteActiveTween then
-            _G.FluxByteActiveTween:Cancel()
-            _G.FluxByteActiveTween = nil
-        end
-    end)
     task.wait()
     if state then shouldTween = true end
 end
@@ -1626,12 +1610,12 @@ do
   end
 
   if not Fluent then
-    local msg = "[NEVAHUB] UI library could not load (" .. tostring(lastErr) ..
+    local msg = "[Flux Byte] UI library could not load (" .. tostring(lastErr) ..
       "). Your executor's HttpGet is likely blocked or does not follow redirects."
     warn(msg)
     pcall(function()
       game:GetService("StarterGui"):SetCore("SendNotification",
-        { Title = "NEVAHUB failed", Text = "UI library download blocked by your executor.", Duration = 15 })
+        { Title = "Flux Byte failed", Text = "UI library download blocked by your executor.", Duration = 15 })
     end)
     error(msg, 0)
   end
@@ -1825,15 +1809,6 @@ function WindowWrap:Notify(o)
     })
 end
 
--- Theme passthrough used by the Interface tab.
-function WindowWrap:SetTheme(name)
-    if self._w and self._w.SetTheme then
-        return self._w:SetTheme(name)
-    end
-    if Fluent and Fluent.SetTheme then
-        return Fluent:SetTheme(name)
-    end
-end
 
 function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) end end
 function WindowWrap:Show() if self._w.Show then self._w:Show() end end
@@ -2010,39 +1985,33 @@ end
 -- ---- NEVAHUB GUI entry point --------------------------------------------
 local NevaLib = {}
 function NevaLib:MakeWindow(o)
-    -- Flux Byte visual system: this is intentionally UI-only.
-    -- Existing feature logic below is left untouched.
+    -- NEVAHUB custom themes
     pcall(function()
-        Fluent:RegisterCustomTheme("FluxByte", {
-            Accent = Color3.fromRGB(0, 210, 255),
-            AcrylicMain = Color3.fromRGB(7, 11, 22),
-            AcrylicBorder = Color3.fromRGB(20, 70, 95),
-            Text = Color3.fromRGB(238, 249, 255),
-            SubText = Color3.fromRGB(130, 170, 195),
-            ToggleToggled = Color3.fromRGB(0, 210, 255),
-            Element = Color3.fromRGB(13, 20, 34),
-            ElementHover = Color3.fromRGB(18, 31, 48),
-            Dropdown = Color3.fromRGB(11, 18, 31),
-            Dialog = Color3.fromRGB(8, 13, 24),
-            Section = Color3.fromRGB(0, 210, 255),
+        Fluent:RegisterCustomTheme("FluxByteRedz", {
+            Accent = Color3.fromRGB(126, 92, 255), AcrylicMain = Color3.fromRGB(18, 18, 23),
+            Text = Color3.fromRGB(245, 245, 248), SubText = Color3.fromRGB(155, 155, 170),
+            ToggleToggled = Color3.fromRGB(126, 92, 255),
+            Element = Color3.fromRGB(28, 28, 35),
+            Hover = Color3.fromRGB(38, 38, 48),
+            Border = Color3.fromRGB(48, 48, 60),
         })
     end)
 
     local w = Fluent:CreateWindow({
-        Title = "Flux Byte Hub",
-        SubTitle = "Blox Fruits | PvP & Automation",
-        Version = "v2.0",
+        Title = "Flux Byte | Blox Fruits",
+        SubTitle = "Blox Fruits â¢ v1.0",
+        Version = "FLUX BYTE",
         TabWidth = 155,
-        Size = UDim2.fromOffset(700, 455),
-        Acrylic = true,
-        Theme = "FluxByte",
+        Size = UDim2.fromOffset(760, 500),
+        Acrylic = false,
+        Theme = "FluxByteRedz",
         MinimizeKey = Enum.KeyCode.LeftControl,
         Search = true,
-        Icons = "lucide/zap",
-        UserInfoTop = true,
-        UserInfoTitle = "FLUX BYTE",
+        Icons = "lucide",
+        UserInfoTop = false,
+        UserInfoTitle = "Flux Byte",
         UserInfoSubtitle = LocalPlayer.DisplayName,
-        UserInfoColor = Color3.fromRGB(0, 210, 255),
+        UserInfoColor = Color3.fromRGB(126, 92, 255),
     })
 
     pcall(function()
@@ -2104,9 +2073,9 @@ end
 
 -- ================= NEVAHUB window bootstrap =================
 local Window = NevaLib:MakeWindow({
-    Title = "Flux Byte Hub",
-    SubTitle = "Blox Fruits | Flux Byte",
-    SaveFolder = "nevahub.json"
+    Title = "Flux Byte | Blox Fruits",
+    SubTitle = "Blox Fruits â¢ v1.0",
+    SaveFolder = "fluxbyte.json"
 })
 
 local Minimizer = Window:NewMinimizer({
@@ -2115,78 +2084,65 @@ local Minimizer = Window:NewMinimizer({
 
 local MobileButton = Minimizer:CreateMobileMinimizer({
   Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(0, 210, 255)
+  BackgroundColor3 = Color3.fromRGB(126, 92, 255)
 })
 
 local Tabs = {
-    Info = Window:MakeTab({ Title = "Dashboard", Icon = "lucide/layout-dashboard" }),
-    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "lucide/palette" }),
-    Main = Window:MakeTab({ Title = "Auto Farm", Icon = "lucide/swords" }),
-    Settings = Window:MakeTab({ Title = "Settings", Icon = "lucide/settings-2" }),
+    Info = Window:MakeTab({ Title = "Home", Icon = "lucide/house" }),
+    Main = Window:MakeTab({ Title = "Farm", Icon = "lucide/swords" }),
     Fish = Window:MakeTab({ Title = "Fishing", Icon = "lucide/fish" }),
-    Quests = Window:MakeTab({ Title = "Quests & Items", Icon = "lucide/scroll-text" }),
-    SeaEvent = Window:MakeTab({ Title = "Sea Events", Icon = "lucide/waves" }),
-    Race = Window:MakeTab({ Title = "Race & Mirage", Icon = "lucide/telescope" }),
-    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "lucide/flame" }),
-    Esp = Window:MakeTab({ Title = "ESP & Stats", Icon = "lucide/eye" }),
-    Raids = Window:MakeTab({ Title = "Raids & Fruits", Icon = "lucide/radiation" }),
+    Quests = Window:MakeTab({ Title = "Quests / Items", Icon = "lucide/package" }),
+    Raids = Window:MakeTab({ Title = "Fruit / Raid", Icon = "lucide/gem" }),
+    SeaEvent = Window:MakeTab({ Title = "Sea", Icon = "lucide/waves" }),
+    Race = Window:MakeTab({ Title = "Race / Mirage", Icon = "lucide/sparkles" }),
+    Esp = Window:MakeTab({ Title = "Stats / ESP", Icon = "lucide/chart-no-axes-column" }),
+    Travel = Window:MakeTab({ Title = "Teleport", Icon = "lucide/map-pin" }),
     Combat = Window:MakeTab({ Title = "Combat", Icon = "lucide/target" }),
-    Travel = Window:MakeTab({ Title = "Travel", Icon = "lucide/map" }),
-    Shop = Window:MakeTab({ Title = "Shop", Icon = "lucide/shopping-bag" }),
-    Misc = Window:MakeTab({ Title = "Misc", Icon = "lucide/package" })
+    Shop = Window:MakeTab({ Title = "Shop", Icon = "lucide/shopping-cart" }),
+    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "lucide/volcano" }),
+    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "lucide/palette" }),
+    Settings = Window:MakeTab({ Title = "Settings", Icon = "lucide/settings" }),
+    Misc = Window:MakeTab({ Title = "Misc", Icon = "lucide/menu" })
 }
 
--- =================== FLUX BYTE DASHBOARD ===================
--- A real redesigned landing page, using the existing safe Fluent wrapper.
-local DashHero = Tabs.Info:AddSection("FLUX BYTE")
-DashHero:AddParagraph(
-    "Flux Byte Hub  â¢  v2.0",
-    "A redesigned control center for Blox Fruits. Use the sidebar to access farming, combat, travel, events and utilities."
-)
-
-local DashStatus = Tabs.Info:AddSection("Live Status")
-local DashLevel = DashStatus:AddParagraph("Player Level", "Loading...")
-local DashWorld = DashStatus:AddParagraph("World", "Loading...")
-local DashTween = DashStatus:AddParagraph("Tween Speed", "180 studs/s")
-local DashCharacter = DashStatus:AddParagraph("Character", "Loading...")
-
-local function FluxByteWorldName()
-    if World1 then return "First Sea" end
-    if World2 then return "Second Sea" end
-    if World3 then return "Third Sea" end
-    return "Unknown"
+-- =================== FLUX BYTE HOME / REDZ-STYLE HEADER ===================
+do
+    local home = Tabs.Info
+    home:AddSection("Flux Byte")
+    home:AddParagraph("Blox Fruits Hub", "A compact dark interface with category navigation, designed around the sidebar + section layout seen in modern Blox Fruits hubs.")
+    home:AddSection("Session")
+    local status = home:AddParagraph("Status", "Loading...")
+    local level = home:AddParagraph("Level", "Checking...")
+    local world = home:AddParagraph("World", "Checking...")
+    local tween = home:AddParagraph("Tween", "180 studs/s")
+    task.spawn(function()
+        while task.wait(1) do
+            pcall(function()
+                local lp = game:GetService("Players").LocalPlayer
+                local data = lp:FindFirstChild("Data")
+                local lvl = data and data:FindFirstChild("Level")
+                local worldValue = game.PlaceId == 2753915549 and "Sea 1" or (game.PlaceId == 4442272183 and "Sea 2" or (game.PlaceId == 7449423635 and "Sea 3" or "Unknown"))
+                level:SetDesc(lvl and tostring(lvl.Value) or "Unknown")
+                world:SetDesc(worldValue)
+                status:SetDesc("Online â¢ UI loaded")
+                tween:SetDesc("180 studs/s")
+            end)
+        end
+    end)
 end
 
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            DashLevel:SetDesc("" .. tostring(GetLevel()))
-            DashWorld:SetDesc(FluxByteWorldName())
-            local c = plr.Character
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            DashCharacter:SetDesc(h and (h.Health > 0 and "Alive" or "Respawning") or "Loading...")
-        end)
-    end
-end)
-
-local DashFeatures = Tabs.Info:AddSection("Quick Overview")
-DashFeatures:AddParagraph("AUTO FARM", "Questing, NPC farming and mastery tools")
-DashFeatures:AddParagraph("COMBAT", "PvP and player utility controls")
-DashFeatures:AddParagraph("WORLD", "Sea events, raids, travel and special events")
-DashFeatures:AddParagraph("TOOLS", "ESP, fishing, shop and miscellaneous utilities")
-
 -- =================== GUI SETTINGS TAB ===================
--- Flux Byte Interface tab.
+-- NEVAHUB GUI Settings tab.
 -- (Window:SetTheme / Window:Notify / positional AddParagraph)
 -- so every element behaves the same as in the standalone GUI file.
 
 local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
 
 secCustomTheme:AddButton({
-    Title = "Apply Flux Byte", Icon = "lucide/zap",
+    Title = "Apply Flux Byte Dark", Icon = "solar/star-bold",
     Callback = function()
-        Window:SetTheme("FluxByte")
-        Window:Notify({Title="Theme", Content="Flux Byte theme applied", Duration=2})
+        Window:SetTheme("FluxByteRedz")
+        Window:Notify({Title="Theme", Content="Flux Byte Dark applied", Duration=2})
     end,
 })
 
@@ -2264,24 +2220,24 @@ pcall(function()
     local SaveManager = SaveManager or env.SaveManager
     local FloatingButtonManager = FloatingButtonManager or env.FloatingButtonManager
     if MediaManager then
-        MediaManager:SetFolder("NEVAHUB/Media")
+        MediaManager:SetFolder("FluxByte/Media")
     end
     if InterfaceManager then
         InterfaceManager:SetLibrary(Fluent)
-        InterfaceManager:SetFolder("NEVAHUB")
+        InterfaceManager:SetFolder("FluxByte")
         InterfaceManager:BuildInterfaceSection(FluentTab)
         -- theme/interface options exist immediately, so this can load now
         pcall(function() InterfaceManager:LoadSettings() end)
     end
     if SaveManager then
         SaveManager:SetLibrary(Fluent)
-        SaveManager:SetFolder("NEVAHUB")
+        SaveManager:SetFolder("FluxByte")
         SaveManager:IgnoreThemeSettings()
         SaveManager:BuildConfigSection(FluentTab)
     end
     if FloatingButtonManager then
         FloatingButtonManager:SetLibrary(Fluent)
-        FloatingButtonManager:SetFolder("NEVAHUB/Floating")
+        FloatingButtonManager:SetFolder("FluxByte/Floating")
         FloatingButtonManager:BuildConfigSection(FluentTab)
     end
 
@@ -2310,8 +2266,8 @@ end)
 Tabs.Info:AddSection("Information")
 
 Tabs.Info:AddDiscordInvite({
-	Title = "Flux Byte | Community",
-	Description = "Flux Byte community for updates, support, and hub announcements.",
+	Title = "NEVAHUB | Community",
+	Description = "A community for NEVAHUB Users - official scripts, updates, and support in one place. Created by NEVA.",
 	Banner = "rbxassetid://75841821715476", 
 	Logo = "rbxassetid://75841821715476",
 	Invite = "https://discord.gg/GTMEDtwmva",
