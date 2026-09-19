@@ -1,4 +1,4 @@
-o
+do
   ply = game:GetService("Players")
   plr = ply.LocalPlayer
   replicated = game:GetService("ReplicatedStorage")
