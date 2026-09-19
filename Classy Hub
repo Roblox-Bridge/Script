@@ -1810,6 +1810,20 @@ function WindowWrap:Notify(o)
 end
 
 
+function WindowWrap:SetTheme(name)
+    local ok = false
+    pcall(function()
+        if self._w.SetTheme then
+            self._w:SetTheme(name)
+            ok = true
+        elseif Fluent.SetTheme then
+            Fluent:SetTheme(name)
+            ok = true
+        end
+    end)
+    return ok
+end
+
 function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) end end
 function WindowWrap:Show() if self._w.Show then self._w:Show() end end
 function WindowWrap:Hide() if self._w.Hide then self._w:Hide() end end
@@ -1987,28 +2001,36 @@ local NevaLib = {}
 function NevaLib:MakeWindow(o)
     -- NEVAHUB custom themes
     pcall(function()
-        Fluent:RegisterCustomTheme("NeonBlue", {
-            Accent = Color3.fromRGB(0, 180, 255), AcrylicMain = Color3.fromRGB(10, 14, 28),
-            Text = Color3.fromRGB(230, 245, 255), SubText = Color3.fromRGB(120, 170, 220),
-            ToggleToggled = Color3.fromRGB(0, 180, 255),
+        Fluent:RegisterCustomTheme("FluxByte", {
+            Accent = Color3.fromRGB(0, 190, 255),
+            AcrylicMain = Color3.fromRGB(8, 12, 22),
+            AcrylicBorder = Color3.fromRGB(0, 190, 255),
+            Text = Color3.fromRGB(235, 248, 255),
+            SubText = Color3.fromRGB(135, 175, 205),
+            Toggle = Color3.fromRGB(30, 42, 58),
+            ToggleToggled = Color3.fromRGB(0, 190, 255),
+            Slider = Color3.fromRGB(0, 190, 255),
+            Dropdown = Color3.fromRGB(15, 22, 35),
+            Button = Color3.fromRGB(14, 25, 40),
+            Input = Color3.fromRGB(12, 20, 32),
         })
     end)
 
     local w = Fluent:CreateWindow({
-        Title = "NEVAHUB",
-        SubTitle = "IS BACK | created by NEVA",
-        Version = "release 1.5.5",
+        Title = "Flux Byte Hub",
+        SubTitle = "Blox Fruits | Flux Byte",
+        Version = "Flux Byte â¢ v1.0",
         TabWidth = 130,
-        Size = UDim2.fromOffset(580, 350),
+        Size = UDim2.fromOffset(600, 390),
         Acrylic = true,
-        Theme = "Blood Red",
+        Theme = "FluxByte",
         MinimizeKey = Enum.KeyCode.LeftControl,
         Search = true,
         Icons = "solar/planet-bold",
         UserInfoTop = true,
-        UserInfoTitle = "Welcome",
+        UserInfoTitle = "Welcome to Flux Byte",
         UserInfoSubtitle = LocalPlayer.DisplayName,
-        UserInfoColor = Color3.fromRGB(180, 10, 20),
+        UserInfoColor = Color3.fromRGB(0, 190, 255),
     })
 
     pcall(function()
@@ -2070,9 +2092,9 @@ end
 
 -- ================= NEVAHUB window bootstrap =================
 local Window = NevaLib:MakeWindow({
-    Title = "NEVAHUB",
-    SubTitle = "IS BACK",
-    SaveFolder = "nevahub.json"
+    Title = "Flux Byte Hub",
+    SubTitle = "Blox Fruits | Flux Byte",
+    SaveFolder = "fluxbyte.json"
 })
 
 local Minimizer = Window:NewMinimizer({
@@ -2081,25 +2103,25 @@ local Minimizer = Window:NewMinimizer({
 
 local MobileButton = Minimizer:CreateMobileMinimizer({
   Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(180, 10, 20)
+  BackgroundColor3 = Color3.fromRGB(0, 170, 235)
 })
 
 local Tabs = {
-    Info = Window:MakeTab({ Title = "Tab Info And Status", Icon = "Info" }),
-    GUI_Settings = Window:MakeTab({ Title = "Tab GUI Settings", Icon = "rbxassetid://7734053495" }),
-    Main = Window:MakeTab({ Title = "Tab Farming", Icon = "rbxassetid://7733960981" }),
-    Settings = Window:MakeTab({ Title = "Tab Setting", Icon = "rbxassetid://7734053495" }),
-    Fish = Window:MakeTab({ Title = "Tab Fishing", Icon = "rbxassetid://127664059821666" }),
-    Quests = Window:MakeTab({ Title = "Tab Quest And Item", Icon = "rbxassetid://13075622619" }),
-    SeaEvent = Window:MakeTab({ Title = "Tab Sea Event", Icon = "waves" }),
-    Race = Window:MakeTab({ Title = "Tab Mirage And Race", Icon = "rbxassetid://11162889532" }),
-    Prehistoric = Window:MakeTab({ Title = "Tab Volcano Event", Icon = "tent" }),
-    Esp = Window:MakeTab({ Title = "Tab Stats And Esp", Icon = "rbxassetid://7040410130" }),
-    Raids = Window:MakeTab({ Title = "Tab Fruit And Raid", Icon = "rbxassetid://11155986081" }),
-    Combat = Window:MakeTab({ Title = "Tab Local Player", Icon = "rbxassetid://13075651575" }),
-    Travel = Window:MakeTab({ Title = "Tab Teleport", Icon = "locate" }),
-    Shop = Window:MakeTab({ Title = "Tab Shopping", Icon = "rbxassetid://6031265976" }),
-    Misc = Window:MakeTab({ Title = "Tab Miscellaneous", Icon = "rbxassetid://10709783577" })
+    Info = Window:MakeTab({ Title = "Dashboard", Icon = "Info" }),
+    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "rbxassetid://7734053495" }),
+    Main = Window:MakeTab({ Title = "Farming", Icon = "rbxassetid://7733960981" }),
+    Settings = Window:MakeTab({ Title = "Settings", Icon = "rbxassetid://7734053495" }),
+    Fish = Window:MakeTab({ Title = "Fishing", Icon = "rbxassetid://127664059821666" }),
+    Quests = Window:MakeTab({ Title = "Quests & Items", Icon = "rbxassetid://13075622619" }),
+    SeaEvent = Window:MakeTab({ Title = "Sea Events", Icon = "waves" }),
+    Race = Window:MakeTab({ Title = "Race & Mirage", Icon = "rbxassetid://11162889532" }),
+    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "tent" }),
+    Esp = Window:MakeTab({ Title = "ESP & Stats", Icon = "rbxassetid://7040410130" }),
+    Raids = Window:MakeTab({ Title = "Raids & Fruits", Icon = "rbxassetid://11155986081" }),
+    Combat = Window:MakeTab({ Title = "Combat", Icon = "rbxassetid://13075651575" }),
+    Travel = Window:MakeTab({ Title = "Travel", Icon = "locate" }),
+    Shop = Window:MakeTab({ Title = "Shop", Icon = "rbxassetid://6031265976" }),
+    Misc = Window:MakeTab({ Title = "Misc", Icon = "rbxassetid://10709783577" })
 }
 
 -- =================== GUI SETTINGS TAB ===================
@@ -2110,10 +2132,10 @@ local Tabs = {
 local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
 
 secCustomTheme:AddButton({
-    Title = "Apply Neonblue", Icon = "solar/star-bold",
+    Title = "Apply Flux Byte Theme", Icon = "solar/star-bold",
     Callback = function()
-        Window:SetTheme("NeonBlue")
-        Window:Notify({Title="Theme", Content="NeonBlue applied", Duration=2})
+        Window:SetTheme("FluxByte")
+        Window:Notify({Title="Theme", Content="Flux Byte theme applied", Duration=2})
     end,
 })
 
@@ -7531,7 +7553,7 @@ local HopToggle = Tabs.Race:AddToggle({
 
                                     -- Hiá»n thá» thÃ´ng bÃ¡o vá»i jobid
                                     Window:Notify({
-                                        Title = "NEVAHUB",
+                                        Title = "Flux Byte Hub",
                                         Content = "ÄÃ£ vÃ o server: " .. selected,
                                         Image = "rbxassetid://75841821715476",
                                         Duration = 5
@@ -13300,8 +13322,8 @@ pcall(function()
 end)
 
 Window:Notify({
-  Title = "NEVAHUB",
-  Content = "NEVAHUB is back - created by NEVA",
+  Title = "Flux Byte Hub",
+  Content = "Flux Byte Hub loaded successfully",
   Image = "rbxassetid://75841821715476",
   Duration = 5
 })
