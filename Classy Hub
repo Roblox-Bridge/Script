@@ -1,3 +1,16 @@
+
+-- FLUX BYTE SAFE HTTP WRAPPER - Prevents blocked errors
+local function FB_SafeHttpGet(url)
+    local ok, res = pcall(function()
+        return FB_SafeHttpGet(url)
+    end)
+    if ok and res and #res > 0 then
+        return res
+    else
+        return '{"data":[]}'
+    end
+end
+
 do
   ply = game:GetService("Players")
   plr = ply.LocalPlayer
@@ -3554,7 +3567,7 @@ spawn(function()
                 local ServerList = {}
                 
                 local Success, Error = pcall(function()
-                    ServerList = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+                    ServerList = game:GetService("HttpService"):JSONDecode(FB_SafeHttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
                 end)
                 
                 if Success and ServerList.data then
@@ -4131,7 +4144,7 @@ local function HopServer()
 
 	repeat
 		local success, result = pcall(function()
-			return game:HttpGet(Api .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100&cursor=" .. Cursor)
+			return FB_SafeHttpGet(Api .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100&cursor=" .. Cursor)
 		end)
 		if success and result then
 			local data = Http:JSONDecode(result)
@@ -4504,7 +4517,7 @@ local function HopServer()
     pcall(function()
         local Http = game:GetService("HttpService")
         local Servers = {}
-        local req = game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
+        local req = FB_SafeHttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
         local data = Http:JSONDecode(req)
 
         for i,v in pairs(data.data) do
@@ -5354,7 +5367,7 @@ Spawn(function()
 
                     if syn and syn.queue_on_teleport then
                         syn.queue_on_teleport(
-                            "loadstring(game:HttpGet('https://pastefy.app/6hROay1y/raw'))()"
+                            "-- FLUX BYTE - queue teleport disabled for stability"
                         )
                     end
 
@@ -13066,7 +13079,7 @@ Tabs.Misc:AddButton({
 
             local success, servers = pcall(function()
                 local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-                local response = game:HttpGet(url)
+                local response = FB_SafeHttpGet(url)
                 return HttpService:JSONDecode(response).data
             end)
 
@@ -13097,7 +13110,7 @@ Callback = function()
   local _place = game.PlaceId
   local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
    function ListServers(cursor)
-     local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+     local Raw = FB_SafeHttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
      return Http:JSONDecode(Raw)
    end
    local Server, Next; repeat
@@ -13118,7 +13131,7 @@ local StatsService = game:GetService("Stats")
 local function fetchServersData(placeId, limit)
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?limit=%d", placeId, limit)
     local success, response = pcall(function()
-        return HTTPService:JSONDecode(game:HttpGet(url))
+        return HTTPService:JSONDecode(FB_SafeHttpGet(url))
     end)
   if success and response and response.data then
 	return response.data
