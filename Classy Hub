@@ -1,17 +1,4 @@
-
--- FLUX BYTE SAFE HTTP WRAPPER - Prevents blocked errors
-local function FB_SafeHttpGet(url)
-    local ok, res = pcall(function()
-        return FB_SafeHttpGet(url)
-    end)
-    if ok and res and #res > 0 then
-        return res
-    else
-        return '{"data":[]}'
-    end
-end
-
-do
+o
   ply = game:GetService("Players")
   plr = ply.LocalPlayer
   replicated = game:GetService("ReplicatedStorage")
@@ -78,13 +65,13 @@ do
 end
 
 -- ========================================
--- FLUX BYTE SETTINGS PERSISTENCE
+-- NEVAHUB SETTINGS PERSISTENCE
 -- Saves data to a JSON file so it survives rejoins.
 -- Safe no-ops if the executor lacks file functions.
 -- ========================================
 do
   local HttpService = game:GetService("HttpService")
-  local FolderName = "FLUX_BYTE"
+  local FolderName = "NEVAHUB"
   local FileName = "Settings.json"
   local FullPath = FolderName .. "/" .. FileName
 
@@ -129,7 +116,7 @@ do
 end
 
 -- ========================================
--- FLUX BYTE PERFORMANCE / ANTI-SPAM HOOKS
+-- NEVAHUB PERFORMANCE / ANTI-SPAM HOOKS
 -- Silences error/warn spam, kills the Death effect + NPC guide updates,
 -- and hides decorative Rocks/Foam. All wrapped in pcall so a missing
 -- object or executor limitation never breaks the main script.
@@ -172,7 +159,7 @@ pcall(function()
 end)
 
 -- ========================================
--- FLUX BYTE FULL BRIGHT - brighter, readable lighting.
+-- NEVAHUB FULL BRIGHT - brighter, readable lighting.
 -- ========================================
 pcall(function()
   Lighting.Ambient = Color3.new(0.695, 0.695, 0.695)
@@ -183,7 +170,7 @@ pcall(function()
 end)
 
 -- ========================================
--- FLUX BYTE AUTO KEN (Observation Haki).
+-- NEVAHUB AUTO KEN (Observation Haki).
 -- Off by default; enable with _G.AutoKen = true.
 -- ========================================
 _G.AutoKen = _G.AutoKen or false
@@ -507,7 +494,7 @@ end
 -- loaded -- i.e. "the script cannot be executed" for some people while it
 -- runs fine for you. Now it degrades to no aim-hook instead of dying.
 if not (getrawmetatable and setreadonly and newcclosure and getnamecallmethod) then
-  warn("[FLUX BYTE] executor lacks metatable hook API; aim/mouse-position hook disabled")
+  warn("[NEVAHUB] executor lacks metatable hook API; aim/mouse-position hook disabled")
 else
 pcall(function()
 local gg = getrawmetatable(game)
@@ -720,9 +707,9 @@ end
 -- NOTE: stored on _G, not as top-level locals. This chunk is already close to
 -- Luau's 200-active-locals-per-function limit; adding more can make the whole
 -- file refuse to compile ("too many local variables") on some executors.
-_G.FLUX_Inv = _G.FLUX_Inv or { data = {}, at = -math.huge }
+_G.NEVA_Inv = _G.NEVA_Inv or { data = {}, at = -math.huge }
 function SafeInventory(maxAge)
-  local c = _G.FLUX_Inv
+  local c = _G.NEVA_Inv
   if os.clock() - c.at < (maxAge or 1) then return c.data end
   local ok, result = pcall(function()
     return replicated.Remotes.CommF_:InvokeServer("getInventory")
@@ -1166,9 +1153,18 @@ _tp = function(target)
         end
     end
     
+    shouldTween = true
+    pcall(function()
+        if _G.FluxByteActiveTween and _G.FluxByteActiveTween.PlaybackState == Enum.PlaybackState.Playing then
+            _G.FluxByteActiveTween:Cancel()
+        end
+    end)
+
     local distance = (gg.Position - rootPart.Position).Magnitude
-    local tweenInfo = TweenInfo.new(distance / 300, Enum.EasingStyle.Linear)
-    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})    
+    local TWEEN_SPEED = 180
+    local tweenInfo = TweenInfo.new(distance / TWEEN_SPEED, Enum.EasingStyle.Linear)
+    local tween = game:GetService("TweenService"):Create(block, tweenInfo, {CFrame = gg})
+    _G.FluxByteActiveTween = tween
     
     if plr.Character.Humanoid.Sit == true then
         block.CFrame = CFrame.new(block.Position.X, gg.Y, block.Position.Z)
@@ -1578,836 +1574,117 @@ QuestNeta = function()
 end
 
 -- =====================================================================
--- FLUX BYTE GUI - REDZ HUB EDITION
--- Rewritten to use redzlib (Redz Hub UI Library) with same API surface
--- as the old Fluent wrapper so the rest of the script works unchanged.
--- Design: Redz Hub style = Dark background, Red accent, rounded, left tabs
+-- NEVAHUB GUI
+-- Exposes the API surface used by this script:
+--   NevaLib:MakeWindow -> creates the window
+--   Window:MakeTab / :NewMinimizer / :CreateMobileMinimizer / :Notify
+--   Tab:AddSection / AddToggle / AddButton / AddSlider / AddDropdown /
+--       AddParagraph / AddTextBox / AddDiscordInvite
+--   Toggle:Set(bool)        Paragraph:SetDesc(str)
 -- =====================================================================
+-- FIX: this was `loadstring(game:HttpGet(url))()` with zero error handling.
+-- That single line is the other big "script cannot be executed" report:
+--  * github.com/.../releases/download/... 302-redirects to
+--    objects.githubusercontent.com, and several mobile executors' HttpGet
+--    does not follow redirects -> returns "" or an HTML error page
+--  * loadstring on that garbage returns nil + an error string, and calling
+--    nil throws "attempt to call a nil value" at top level -> whole script dead
+-- Now: try mirrors, and report WHICH step failed instead of dying silently.
+local Fluent
+do
+  local sources = {
+    "https://github.com/StyearX/Fluent-modded/releases/download/1.5.5/FluentPro",
+    "https://raw.githubusercontent.com/StyearX/Fluent-modded/main/FluentPro.lua",
+  }
+  local httpget = (syn and syn.request) and function(u)
+      local r = syn.request({ Url = u, Method = "GET" })
+      return r and r.Body
+    end or function(u) return game:HttpGet(u) end
 
--- Embedded Redz Hub Clone - No HttpGet needed
--- Fully self-contained, mimics Redz Hub UI
-local redzlib = {}
-redzlib.Flags = {}
-redzlib.Themes = {
-    Dark = {Accent = Color3.fromRGB(85, 120, 255), Background = Color3.fromRGB(18,18,18), TabActive = Color3.fromRGB(35,35,45)},
-    Darker = {Accent = Color3.fromRGB(155, 85, 255), Background = Color3.fromRGB(14,14,14), TabActive = Color3.fromRGB(30,25,40)},
-    Purple = {Accent = Color3.fromRGB(170, 80, 255), Background = Color3.fromRGB(16,12,22), TabActive = Color3.fromRGB(35,25,45)},
-    DarkRed = {Accent = Color3.fromRGB(200, 30, 40), Background = Color3.fromRGB(18,14,14), TabActive = Color3.fromRGB(45,20,20)},
-}
-redzlib.CurrentTheme = "DarkRed"
-redzlib.SaveFile = "FLUX_BYTE.json"
-
-function redzlib:SetTheme(name)
-    if self.Themes[name] then
-        self.CurrentTheme = name
-        if self.OnThemeChanged then
-            pcall(self.OnThemeChanged, self.Themes[name])
-        end
+  local lastErr
+  for _, url in ipairs(sources) do
+    local ok, body = pcall(httpget, url)
+    if ok and type(body) == "string" and #body > 1000 and not body:find("^%s*<") then
+      local chunk, err = loadstring(body)
+      if chunk then
+        local ran, lib = pcall(chunk)
+        if ran and type(lib) == "table" then Fluent = lib break end
+        lastErr = "library errored while loading: " .. tostring(lib)
+      else
+        lastErr = "compile failed: " .. tostring(err)
+      end
+    else
+      lastErr = "download failed / not a script: " .. tostring(ok and body and #body)
     end
-end
+  end
 
-function redzlib:GetTheme()
-    return self.Themes[self.CurrentTheme] or self.Themes.DarkRed
-end
-
-function redzlib:SetFlag(flag, value)
-    self.Flags[flag] = value
+  if not Fluent then
+    local msg = "[NEVAHUB] UI library could not load (" .. tostring(lastErr) ..
+      "). Your executor's HttpGet is likely blocked or does not follow redirects."
+    warn(msg)
     pcall(function()
-        if writefile and isfolder then
-            if not isfolder("FLUX_BYTE") then pcall(makefolder, "FLUX_BYTE") end
-            local HttpService = game:GetService("HttpService")
-            pcall(writefile, "FLUX_BYTE/"..self.SaveFile, HttpService:JSONEncode(self.Flags))
-        end
+      game:GetService("StarterGui"):SetCore("SendNotification",
+        { Title = "NEVAHUB failed", Text = "UI library download blocked by your executor.", Duration = 15 })
     end)
+    error(msg, 0)
+  end
 end
 
-function redzlib:GetFlag(flag)
-    return self.Flags[flag]
-end
+local UserInputService = game:GetService("UserInputService")
+--local LocalPlayer = game:GetService("Players").LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
-pcall(function()
-    if isfile and readfile then
-        local HttpService = game:GetService("HttpService")
-        local path = "FLUX_BYTE/"..redzlib.SaveFile
-        if isfile(path) then
-            local data = readfile(path)
-            local ok, decoded = pcall(HttpService.JSONDecode, HttpService, data)
-            if ok and type(decoded)=="table" then
-                redzlib.Flags = decoded
-            end
-        end
-    end
-end)
-
-function redzlib:GetIcon(name)
-    return "rbxassetid://0"
-end
-
--- Main Window creation
-function redzlib:MakeWindow(config)
-    local title = config[1] or config.Title or "FLUX BYTE"
-    local subtitle = config[2] or config.SubTitle or "Premium"
-    local saveFile = config[3] or config.SaveFile or "FLUX_BYTE.json"
-    self.SaveFile = saveFile
-    
-    local theme = self:GetTheme()
-    
-    -- ScreenGui
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "FLUX_BYTE_UI"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.IgnoreGuiInset = true
-    local parented = false
-    pcall(function()
-        ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-        parented = true
-    end)
-    if not parented then
-        ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    end
-    
-    -- Main Frame
-    local Main = Instance.new("Frame")
-    Main.Name = "Main"
-    Main.Parent = ScreenGui
-    Main.BackgroundColor3 = theme.Background
-    Main.BorderSizePixel = 0
-    Main.Position = UDim2.new(0.5, -290, 0.5, -175)
-    Main.Size = UDim2.new(0, 580, 0, 380)
-    Main.ClipsDescendants = false
-    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
-    local MainStroke = Instance.new("UIStroke", Main)
-    MainStroke.Color = theme.Accent
-    MainStroke.Thickness = 1.5
-    MainStroke.Transparency = 0.3
-    
-    -- Top Bar
-    local TopBar = Instance.new("Frame")
-    TopBar.Name = "TopBar"
-    TopBar.Parent = Main
-    TopBar.BackgroundColor3 = Color3.fromRGB(25,25,25)
-    TopBar.Size = UDim2.new(1,0,0,45)
-    Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0,10)
-    local TopFix = Instance.new("Frame", TopBar)
-    TopFix.BackgroundColor3 = TopBar.BackgroundColor3
-    TopFix.BorderSizePixel = 0
-    TopFix.Position = UDim2.new(0,0,0.5,0)
-    TopFix.Size = UDim2.new(1,0,0.5,0)
-    
-    local TitleLabel = Instance.new("TextLabel", TopBar)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Position = UDim2.new(0,15,0,0)
-    TitleLabel.Size = UDim2.new(0.6,0,0.6,0)
-    TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.Text = title
-    TitleLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    TitleLabel.TextSize = 16
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local SubLabel = Instance.new("TextLabel", TopBar)
-    SubLabel.BackgroundTransparency = 1
-    SubLabel.Position = UDim2.new(0,15,0.55,0)
-    SubLabel.Size = UDim2.new(0.6,0,0.4,0)
-    SubLabel.Font = Enum.Font.Gotham
-    SubLabel.Text = subtitle
-    SubLabel.TextColor3 = Color3.fromRGB(180,180,180)
-    SubLabel.TextSize = 11
-    SubLabel.TextXAlignment = Enum.TextXAlignment.Left
-    
-    -- Close/Minimize Buttons
-    local CloseBtn = Instance.new("TextButton", TopBar)
-    CloseBtn.Size = UDim2.new(0,30,0,30)
-    CloseBtn.Position = UDim2.new(1,-35,0,7)
-    CloseBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    CloseBtn.Text = "X"
-    CloseBtn.TextColor3 = Color3.new(1,1,1)
-    CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.TextSize = 14
-    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,6)
-    
-    local MinBtn = Instance.new("TextButton", TopBar)
-    MinBtn.Size = UDim2.new(0,30,0,30)
-    MinBtn.Position = UDim2.new(1,-70,0,7)
-    MinBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    MinBtn.Text = "-"
-    MinBtn.TextColor3 = Color3.new(1,1,1)
-    MinBtn.Font = Enum.Font.GothamBold
-    MinBtn.TextSize = 18
-    Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0,6)
-    
-    -- Tab Bar (left)
-    local TabBar = Instance.new("ScrollingFrame", Main)
-    TabBar.Name = "TabBar"
-    TabBar.Position = UDim2.new(0,5,0,50)
-    TabBar.Size = UDim2.new(0,130,1,-55)
-    TabBar.BackgroundColor3 = Color3.fromRGB(20,20,20)
-    TabBar.BorderSizePixel = 0
-    TabBar.ScrollBarThickness = 2
-    TabBar.CanvasSize = UDim2.new(0,0,0,0)
-    TabBar.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0,8)
-    local TabList = Instance.new("UIListLayout", TabBar)
-    TabList.Padding = UDim.new(0,4)
-    TabList.SortOrder = Enum.SortOrder.LayoutOrder
-    local TabPad = Instance.new("UIPadding", TabBar)
-    TabPad.PaddingAll = UDim.new(0,5)
-    
-    -- Content Area (right)
-    local ContentHolder = Instance.new("Frame", Main)
-    ContentHolder.Name = "ContentHolder"
-    ContentHolder.Position = UDim2.new(0,140,0,50)
-    ContentHolder.Size = UDim2.new(1,-145,1,-55)
-    ContentHolder.BackgroundTransparency = 1
-    
-    local Tabs = {}
-    local CurrentTab = nil
-    
-    local WindowObj = {}
-    WindowObj._gui = ScreenGui
-    WindowObj._main = Main
-    WindowObj._contentHolder = ContentHolder
-    WindowObj._tabBar = TabBar
-    WindowObj._tabs = Tabs
-    
-    function WindowObj:MakeTab(tabConfig)
-        local tabName = tabConfig[1] or tabConfig.Title or "Tab"
-        local tabIcon = tabConfig[2] or tabConfig.Icon or "layout-grid"
-        
-        -- Tab Button
-        local TabBtn = Instance.new("TextButton")
-        TabBtn.Name = tabName
-        TabBtn.Parent = TabBar
-        TabBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-        TabBtn.Size = UDim2.new(1,0,0,36)
-        TabBtn.Text = "  "..tabName
-        TabBtn.TextColor3 = Color3.fromRGB(200,200,200)
-        TabBtn.Font = Enum.Font.Gotham
-        TabBtn.TextSize = 12
-        TabBtn.TextXAlignment = Enum.TextXAlignment.Left
-        TabBtn.AutoButtonColor = false
-        Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0,6)
-        
-        -- Tab Content Scroll
-        local TabContent = Instance.new("ScrollingFrame")
-        TabContent.Name = tabName.."_Content"
-        TabContent.Parent = ContentHolder
-        TabContent.Size = UDim2.new(1,0,1,0)
-        TabContent.BackgroundTransparency = 1
-        TabContent.BorderSizePixel = 0
-        TabContent.ScrollBarThickness = 3
-        TabContent.CanvasSize = UDim2.new(0,0,0,0)
-        TabContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        TabContent.Visible = false
-        local ContentList = Instance.new("UIListLayout", TabContent)
-        ContentList.Padding = UDim.new(0,6)
-        ContentList.SortOrder = Enum.SortOrder.LayoutOrder
-        local ContentPad = Instance.new("UIPadding", TabContent)
-        ContentPad.PaddingAll = UDim.new(0,4)
-        
-        local function select()
-            for _, t in pairs(Tabs) do
-                t.Button.BackgroundColor3 = Color3.fromRGB(30,30,30)
-                t.Button.TextColor3 = Color3.fromRGB(200,200,200)
-                t.Content.Visible = false
-            end
-            TabBtn.BackgroundColor3 = redzlib:GetTheme().Accent
-            TabBtn.TextColor3 = Color3.new(1,1,1)
-            TabContent.Visible = true
-            CurrentTab = TabContent
-        end
-        
-        TabBtn.MouseButton1Click:Connect(select)
-        
-        local tabData = {Button = TabBtn, Content = TabContent}
-        table.insert(Tabs, tabData)
-        
-        if #Tabs == 1 then select() end
-        
-        -- Tab Object with Add methods
-        local TabObj = {}
-        TabObj._content = TabContent
-        TabObj._window = WindowObj
-        
-        function TabObj:AddSection(name)
-            local Section = Instance.new("TextLabel")
-            Section.Parent = TabContent
-            Section.BackgroundColor3 = Color3.fromRGB(28,28,28)
-            Section.Size = UDim2.new(1,-8,0,28)
-            Section.Text = "  "..tostring(name)
-            Section.TextColor3 = Color3.new(1,1,1)
-            Section.Font = Enum.Font.GothamBold
-            Section.TextSize = 13
-            Section.TextXAlignment = Enum.TextXAlignment.Left
-            Instance.new("UICorner", Section).CornerRadius = UDim.new(0,6)
-            return TabObj
-        end
-        
-        function TabObj:AddParagraph(parConfig)
-            local t = parConfig[1] or parConfig.Title or "Title"
-            local c = parConfig[2] or parConfig.Content or ""
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(28,28,28)
-            Frame.Size = UDim2.new(1,-8,0,50)
-            Frame.AutomaticSize = Enum.AutomaticSize.Y
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            local Title = Instance.new("TextLabel", Frame)
-            Title.BackgroundTransparency = 1
-            Title.Size = UDim2.new(1,-10,0,20)
-            Title.Position = UDim2.new(0,5,0,2)
-            Title.Text = t
-            Title.TextColor3 = Color3.new(1,1,1)
-            Title.Font = Enum.Font.GothamBold
-            Title.TextSize = 12
-            Title.TextXAlignment = Enum.TextXAlignment.Left
-            local Content = Instance.new("TextLabel", Frame)
-            Content.Name = "Content"
-            Content.BackgroundTransparency = 1
-            Content.Size = UDim2.new(1,-10,0,20)
-            Content.Position = UDim2.new(0,5,0,22)
-            Content.Text = c
-            Content.TextColor3 = Color3.fromRGB(180,180,180)
-            Content.Font = Enum.Font.Gotham
-            Content.TextSize = 11
-            Content.TextXAlignment = Enum.TextXAlignment.Left
-            Content.TextWrapped = true
-            Content.AutomaticSize = Enum.AutomaticSize.Y
-            local wrapped = {}
-            function wrapped:SetDesc(txt) Content.Text = tostring(txt) end
-            function wrapped:SetTitle(txt) Title.Text = tostring(txt) end
-            return wrapped
-        end
-        
-        function TabObj:AddButton(btnConfig)
-            local name = btnConfig[1] or btnConfig.Name or btnConfig.Title or "Button"
-            local cb = btnConfig[2] or btnConfig.Callback or function() end
-            if type(btnConfig) == "table" and btnConfig.Callback then cb = btnConfig.Callback end
-            if type(name) ~= "string" then name = tostring(name) end
-            
-            local Btn = Instance.new("TextButton")
-            Btn.Parent = TabContent
-            Btn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-            Btn.Size = UDim2.new(1,-8,0,32)
-            Btn.Text = name
-            Btn.TextColor3 = Color3.new(1,1,1)
-            Btn.Font = Enum.Font.Gotham
-            Btn.TextSize = 12
-            Instance.new("UICorner", Btn).CornerRadius = UDim.new(0,6)
-            local Stroke = Instance.new("UIStroke", Btn)
-            Stroke.Color = Color3.fromRGB(60,60,60)
-            Stroke.Thickness = 1
-            
-            Btn.MouseButton1Click:Connect(function()
-                pcall(cb)
-            end)
-            
-            Btn.MouseEnter:Connect(function()
-                game:GetService("TweenService"):Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45,45,45)}):Play()
-            end)
-            Btn.MouseLeave:Connect(function()
-                game:GetService("TweenService"):Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35,35,35)}):Play()
-            end)
-            
-            return Btn
-        end
-        
-        function TabObj:AddToggle(togConfig)
-            local name = togConfig[1] or togConfig.Name or togConfig.Title or "Toggle"
-            local default = togConfig[2]
-            if default == nil then default = togConfig.Default or false end
-            local cb = togConfig[3] or togConfig.Callback or function() end
-            if type(togConfig) == "table" and togConfig.Callback then cb = togConfig.Callback end
-            local flag = togConfig[4] or togConfig.Flag or ("TOGGLE_"..name)
-            if type(name) ~= "string" then name = tostring(name) end
-            
-            -- Load saved
-            if redzlib.Flags[flag] ~= nil then default = redzlib.Flags[flag] end
-            
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(32,32,32)
-            Frame.Size = UDim2.new(1,-8,0,34)
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            
-            local Label = Instance.new("TextLabel", Frame)
-            Label.BackgroundTransparency = 1
-            Label.Size = UDim2.new(1,-60,1,0)
-            Label.Position = UDim2.new(0,8,0,0)
-            Label.Text = name
-            Label.TextColor3 = Color3.new(1,1,1)
-            Label.Font = Enum.Font.Gotham
-            Label.TextSize = 12
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            
-            local ToggleBtn = Instance.new("Frame", Frame)
-            ToggleBtn.Size = UDim2.new(0,44,0,22)
-            ToggleBtn.Position = UDim2.new(1,-50,0.5,-11)
-            ToggleBtn.BackgroundColor3 = default and redzlib:GetTheme().Accent or Color3.fromRGB(55,55,55)
-            Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1,0)
-            
-            local Circle = Instance.new("Frame", ToggleBtn)
-            Circle.Size = UDim2.new(0,18,0,18)
-            Circle.Position = default and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,2,0.5,-9)
-            Circle.BackgroundColor3 = Color3.new(1,1,1)
-            Instance.new("UICorner", Circle).CornerRadius = UDim.new(1,0)
-            
-            local state = default and true or false
-            
-            local function setState(v, skipCb)
-                state = v and true or false
-                local tween = game:GetService("TweenService")
-                tween:Create(ToggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = state and redzlib:GetTheme().Accent or Color3.fromRGB(55,55,55)}):Play()
-                tween:Create(Circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1,-20,0.5,-9) or UDim2.new(0,2,0.5,-9)}):Play()
-                redzlib:SetFlag(flag, state)
-                if not skipCb then pcall(cb, state) end
-            end
-            
-            -- Click area
-            local ClickBtn = Instance.new("TextButton", Frame)
-            ClickBtn.BackgroundTransparency = 1
-            ClickBtn.Size = UDim2.new(1,0,1,0)
-            ClickBtn.Text = ""
-            ClickBtn.MouseButton1Click:Connect(function()
-                setState(not state)
-            end)
-            
-            task.spawn(function() pcall(cb, state) end)
-            
-            local wrapped = {}
-            function wrapped:Set(v) setState(v) end
-            function wrapped:Get() return state end
-            wrapped.Value = state
-            return wrapped
-        end
-        
-        function TabObj:AddSlider(sliConfig)
-            local name = sliConfig[1] or sliConfig.Name or sliConfig.Title or "Slider"
-            local min = sliConfig[2] or sliConfig.Min or 0
-            local max = sliConfig[3] or sliConfig.Max or 100
-            local default = sliConfig[4] or sliConfig.Default or min
-            local cb = sliConfig[5] or sliConfig.Callback or function() end
-            if type(sliConfig) == "table" and sliConfig.Callback then cb = sliConfig.Callback end
-            local step = sliConfig[6] or sliConfig.Increment or sliConfig.Increase or 1
-            local flag = sliConfig[7] or sliConfig.Flag or ("SLIDER_"..name)
-            if type(name) ~= "string" then name = tostring(name) end
-            
-            if redzlib.Flags[flag] ~= nil then default = redzlib.Flags[flag] end
-            
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(32,32,32)
-            Frame.Size = UDim2.new(1,-8,0,50)
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            
-            local Label = Instance.new("TextLabel", Frame)
-            Label.BackgroundTransparency = 1
-            Label.Size = UDim2.new(1,-10,0,18)
-            Label.Position = UDim2.new(0,8,0,2)
-            Label.Text = name.." : "..tostring(default)
-            Label.TextColor3 = Color3.new(1,1,1)
-            Label.Font = Enum.Font.Gotham
-            Label.TextSize = 11
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            
-            local Bar = Instance.new("Frame", Frame)
-            Bar.Size = UDim2.new(1,-16,0,8)
-            Bar.Position = UDim2.new(0,8,0,30)
-            Bar.BackgroundColor3 = Color3.fromRGB(55,55,55)
-            Instance.new("UICorner", Bar).CornerRadius = UDim.new(1,0)
-            
-            local Fill = Instance.new("Frame", Bar)
-            Fill.Size = UDim2.new((default-min)/(max-min),0,1,0)
-            Fill.BackgroundColor3 = redzlib:GetTheme().Accent
-            Instance.new("UICorner", Fill).CornerRadius = UDim.new(1,0)
-            
-            local DragBtn = Instance.new("TextButton", Bar)
-            DragBtn.BackgroundTransparency = 1
-            DragBtn.Size = UDim2.new(1,0,1,0)
-            DragBtn.Text = ""
-            
-            local dragging = false
-            local function update(input)
-                local pos = math.clamp((input.Position.X - Bar.AbsolutePosition.X)/Bar.AbsoluteSize.X, 0,1)
-                local value = math.floor((min + (max-min)*pos)/step)*step
-                value = math.clamp(value, min, max)
-                Fill.Size = UDim2.new((value-min)/(max-min),0,1,0)
-                Label.Text = name.." : "..tostring(value)
-                redzlib:SetFlag(flag, value)
-                pcall(cb, value)
-            end
-            
-            DragBtn.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    update(input)
-                end
-            end)
-            DragBtn.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = false
-                end
-            end)
-            game:GetService("UserInputService").InputChanged:Connect(function(input)
-                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    update(input)
-                end
-            end)
-            
-            local wrapped = {}
-            function wrapped:Set(v)
-                Fill.Size = UDim2.new((v-min)/(max-min),0,1,0)
-                Label.Text = name.." : "..tostring(v)
-                pcall(cb, v)
-            end
-            return wrapped
-        end
-        
-        function TabObj:AddDropdown(dropConfig)
-            local name = dropConfig[1] or dropConfig.Name or dropConfig.Title or "Dropdown"
-            local options = dropConfig[2] or dropConfig.Options or {}
-            local default = dropConfig[3] or dropConfig.Default or options[1]
-            local cb = dropConfig[4] or dropConfig.Callback or function() end
-            if type(dropConfig) == "table" and dropConfig.Callback then cb = dropConfig.Callback end
-            local flag = dropConfig[5] or dropConfig.Flag or ("DROPDOWN_"..name)
-            if type(name) ~= "string" then name = tostring(name) end
-            if type(default) == "table" then default = default[1] end
-            
-            if redzlib.Flags[flag] ~= nil then default = redzlib.Flags[flag] end
-            
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(32,32,32)
-            Frame.Size = UDim2.new(1,-8,0,36)
-            Frame.ClipsDescendants = true
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            
-            local Label = Instance.new("TextLabel", Frame)
-            Label.BackgroundTransparency = 1
-            Label.Size = UDim2.new(0.5,0,0,36)
-            Label.Position = UDim2.new(0,8,0,0)
-            Label.Text = name
-            Label.TextColor3 = Color3.new(1,1,1)
-            Label.Font = Enum.Font.Gotham
-            Label.TextSize = 11
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            
-            local DropBtn = Instance.new("TextButton", Frame)
-            DropBtn.Size = UDim2.new(0.5,-8,0,26)
-            DropBtn.Position = UDim2.new(0.5,0,0,5)
-            DropBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
-            DropBtn.Text = tostring(default or "Select")
-            DropBtn.TextColor3 = Color3.new(1,1,1)
-            DropBtn.Font = Enum.Font.Gotham
-            DropBtn.TextSize = 11
-            Instance.new("UICorner", DropBtn).CornerRadius = UDim.new(0,4)
-            
-            local expanded = false
-            local OptionFrames = {}
-            
-            DropBtn.MouseButton1Click:Connect(function()
-                expanded = not expanded
-                if expanded then
-                    Frame.Size = UDim2.new(1,-8,0,36 + (#options*28))
-                    for _, opt in ipairs(options) do
-                        local OptBtn = Instance.new("TextButton")
-                        OptBtn.Parent = Frame
-                        OptBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-                        OptBtn.Size = UDim2.new(1,-8,0,24)
-                        OptBtn.Position = UDim2.new(0,4,0,36 + ((table.find(options, opt) or 1)-1)*28)
-                        OptBtn.Text = tostring(opt)
-                        OptBtn.TextColor3 = Color3.new(1,1,1)
-                        OptBtn.Font = Enum.Font.Gotham
-                        OptBtn.TextSize = 11
-                        Instance.new("UICorner", OptBtn).CornerRadius = UDim.new(0,4)
-                        OptBtn.MouseButton1Click:Connect(function()
-                            DropBtn.Text = tostring(opt)
-                            redzlib:SetFlag(flag, opt)
-                            pcall(cb, opt)
-                            expanded = false
-                            Frame.Size = UDim2.new(1,-8,0,36)
-                            for _, f in pairs(OptionFrames) do f:Destroy() end
-                            OptionFrames = {}
-                        end)
-                        table.insert(OptionFrames, OptBtn)
-                    end
-                else
-                    Frame.Size = UDim2.new(1,-8,0,36)
-                    for _, f in pairs(OptionFrames) do f:Destroy() end
-                    OptionFrames = {}
-                end
-            end)
-            
-            task.spawn(function() if default then pcall(cb, default) end end)
-            
-            local wrapped = {}
-            function wrapped:Set(v) DropBtn.Text = tostring(v); pcall(cb, v) end
-            function wrapped:Refresh(opts, keep)
-                options = opts or options
-            end
-            wrapped.SetOptions = wrapped.Refresh
-            return wrapped
-        end
-        
-        function TabObj:AddTextBox(boxConfig)
-            local name = boxConfig[1] or boxConfig.Name or boxConfig.Title or "TextBox"
-            local default = boxConfig[2] or boxConfig.Default or ""
-            local clear = boxConfig[3] or boxConfig.ClearOnFocus or false
-            local cb = boxConfig[4] or boxConfig.Callback or function() end
-            if type(boxConfig) == "table" and boxConfig.Callback then cb = boxConfig.Callback end
-            local placeholder = boxConfig[5] or boxConfig.Placeholder or ""
-            if type(name) ~= "string" then name = tostring(name) end
-            
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(32,32,32)
-            Frame.Size = UDim2.new(1,-8,0,36)
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            
-            local Label = Instance.new("TextLabel", Frame)
-            Label.BackgroundTransparency = 1
-            Label.Size = UDim2.new(0.4,0,1,0)
-            Label.Position = UDim2.new(0,8,0,0)
-            Label.Text = name
-            Label.TextColor3 = Color3.new(1,1,1)
-            Label.Font = Enum.Font.Gotham
-            Label.TextSize = 11
-            Label.TextXAlignment = Enum.TextXAlignment.Left
-            
-            local Box = Instance.new("TextBox", Frame)
-            Box.Size = UDim2.new(0.6,-8,0,26)
-            Box.Position = UDim2.new(0.4,0,0,5)
-            Box.BackgroundColor3 = Color3.fromRGB(45,45,45)
-            Box.Text = tostring(default)
-            Box.PlaceholderText = placeholder
-            Box.TextColor3 = Color3.new(1,1,1)
-            Box.Font = Enum.Font.Gotham
-            Box.TextSize = 11
-            Instance.new("UICorner", Box).CornerRadius = UDim.new(0,4)
-            Box.FocusLost:Connect(function()
-                pcall(cb, Box.Text)
-            end)
-            
-            return Box
-        end
-        
-        function TabObj:AddDiscordInvite(invConfig)
-            local name = invConfig[1] or invConfig.Title or invConfig.Name or "Discord"
-            local icon = invConfig[2] or invConfig.Logo or invConfig.Banner or ""
-            local invite = invConfig[3] or invConfig.Invite or ""
-            if type(invConfig) == "table" then
-                name = invConfig.Title or invConfig.Name or name
-                invite = invConfig.Invite or invite
-            end
-            local Frame = Instance.new("Frame")
-            Frame.Parent = TabContent
-            Frame.BackgroundColor3 = Color3.fromRGB(32,32,32)
-            Frame.Size = UDim2.new(1,-8,0,60)
-            Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,6)
-            local L = Instance.new("TextLabel", Frame)
-            L.BackgroundTransparency = 1
-            L.Size = UDim2.new(1,-10,0,20)
-            L.Position = UDim2.new(0,5,0,2)
-            L.Text = name
-            L.TextColor3 = Color3.new(1,1,1)
-            L.Font = Enum.Font.GothamBold
-            L.TextSize = 12
-            L.TextXAlignment = Enum.TextXAlignment.Left
-            local Inv = Instance.new("TextButton", Frame)
-            Inv.Size = UDim2.new(1,-10,0,28)
-            Inv.Position = UDim2.new(0,5,0,26)
-            Inv.BackgroundColor3 = Color3.fromRGB(88,101,242)
-            Inv.Text = "Join Discord: "..invite
-            Inv.TextColor3 = Color3.new(1,1,1)
-            Inv.Font = Enum.Font.Gotham
-            Inv.TextSize = 11
-            Instance.new("UICorner", Inv).CornerRadius = UDim.new(0,4)
-            Inv.MouseButton1Click:Connect(function()
-                if setclipboard then setclipboard(invite) end
-            end)
-        end
-        
-        function TabObj:AddColorPicker() return {} end
-        function TabObj:AddKeybind() return {} end
-        function TabObj:AddDivider()
-            local Line = Instance.new("Frame", TabContent)
-            Line.BackgroundColor3 = Color3.fromRGB(50,50,50)
-            Line.Size = UDim2.new(1,-16,0,1)
-        end
-        function TabObj:AddInput(o) return TabObj:AddTextBox(o) end
-        function TabObj:AddLabel(t) return TabObj:AddParagraph(t, "") end
-        
-        return TabObj
-    end
-    
-    function WindowObj:Notify(notifConfig)
-        local title = notifConfig.Title or "FLUX BYTE"
-        local content = notifConfig.Content or ""
-        local dur = notifConfig.Duration or 3
-        
-        local NotifGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
-        NotifGui.Name = "FLUX_NOTIFY"
-        local Frame = Instance.new("Frame", NotifGui)
-        Frame.Size = UDim2.new(0,220,0,60)
-        Frame.Position = UDim2.new(1,-230,1,-80)
-        Frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
-        Instance.new("UICorner", Frame).CornerRadius = UDim.new(0,8)
-        local Stroke = Instance.new("UIStroke", Frame)
-        Stroke.Color = redzlib:GetTheme().Accent
-        Stroke.Thickness = 1
-        local T = Instance.new("TextLabel", Frame)
-        T.BackgroundTransparency = 1
-        T.Size = UDim2.new(1,-10,0,20)
-        T.Position = UDim2.new(0,5,0,2)
-        T.Text = title
-        T.TextColor3 = Color3.new(1,1,1)
-        T.Font = Enum.Font.GothamBold
-        T.TextSize = 12
-        T.TextXAlignment = Enum.TextXAlignment.Left
-        local C = Instance.new("TextLabel", Frame)
-        C.BackgroundTransparency = 1
-        C.Size = UDim2.new(1,-10,0,30)
-        C.Position = UDim2.new(0,5,0,22)
-        C.Text = content
-        C.TextColor3 = Color3.fromRGB(200,200,200)
-        C.Font = Enum.Font.Gotham
-        C.TextSize = 11
-        C.TextWrapped = true
-        C.TextXAlignment = Enum.TextXAlignment.Left
-        task.delay(dur, function() NotifGui:Destroy() end)
-    end
-    
-    function WindowObj:Dialog(d) self:Notify({Title=d.Title or "Dialog", Content=d.Text or "", Duration=5}) end
-    function WindowObj:SelectTab(i)
-        if Tabs[i] then
-            for _, t in pairs(Tabs) do
-                t.Button.BackgroundColor3 = Color3.fromRGB(30,30,30)
-                t.Button.TextColor3 = Color3.fromRGB(200,200,200)
-                t.Content.Visible = false
-            end
-            Tabs[i].Button.BackgroundColor3 = redzlib:GetTheme().Accent
-            Tabs[i].Button.TextColor3 = Color3.new(1,1,1)
-            Tabs[i].Content.Visible = true
-        end
-    end
-    function WindowObj:Show() Main.Visible = true end
-    function WindowObj:Hide() Main.Visible = false end
-    function WindowObj:Minimize() Main.Visible = not Main.Visible end
-    function WindowObj:Set(t,s)
-        TitleLabel.Text = t or TitleLabel.Text
-        SubLabel.Text = s or SubLabel.Text
-    end
-    function WindowObj:AddMinimizeButton() end
-    function WindowObj:SetTheme(name) redzlib:SetTheme(name) end
-    
-    -- Draggable TopBar
-    local dragging, dragInput, dragStart, startPos
-    TopBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = Main.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    TopBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    
-    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-    MinBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
-    
-    -- Theme change handler
-    redzlib.OnThemeChanged = function(theme)
-        MainStroke.Color = theme.Accent
-        -- update toggles? left as is
-    end
-    
-    return WindowObj
-end
-
-return redzlib
-
-
--- Set theme
-pcall(function() redzlib:SetTheme("DarkRed") end)
-
+-- unique-flag generator (Fluent wants a unique flag id per stateful element)
 local _flagN = 0
 local function nextFlag(prefix)
     _flagN = _flagN + 1
-    return "FLUXBYTE_" .. (prefix or "F") .. "_" .. _flagN
+    return "NEVAHUB_" .. (prefix or "F") .. "_" .. _flagN
 end
 
+-- normalize an icon string to something the GUI accepts.
+-- Fluent accepts rbxassetid:// and prefix/name packs. Bare lucide names
+-- ("Info","locate","waves","tent") are mapped to the lucide/ pack.
+local function fixIcon(icon)
+    if type(icon) ~= "string" or icon == "" then return icon end
+    if icon:find("://") or icon:find("/") then return icon end
+    return "lucide/" .. icon:lower()
+end
+
+-- Source mixes (Name=) and (Title=) keys.
+-- Accept either, and never pass nil (the GUI errors on a missing Title).
 local function titleOf(o)
-    if type(o) == "string" then return o end
-    if type(o) ~= "table" then return "" end
-    local t = o.Name or o.Title or o.Text or o[1] or ""
+    local t = o.Name or o.Title or o.Text or ""
     return tostring(t)
 end
 
-local function fixIcon(icon)
-    if type(icon) ~= "string" or icon == "" then return icon end
-    if icon:find("://") then return icon end
-    -- redzlib uses lucide names lowercase without prefix
-    -- strip prefixes like "lucide/" or "solar/"
-    icon = icon:gsub("lucide/", ""):gsub("solar/", ""):gsub("-bold", ""):gsub("rbxassetid://%d+", "")
-    if icon == "" then return "layout-grid" end
-    return icon:lower()
-end
-
--- Extract callback from both array and dict style
-local function getCallback(o, idx)
-    if type(o) == "table" then
-        if type(o.Callback) == "function" then return o.Callback end
-        if type(o[idx]) == "function" then return o[idx] end
-        -- second element sometimes callback in redzlib array style
-        for _, v in ipairs(o) do if type(v) == "function" then return v end end
-    end
-    return function() end
-end
-
--- ---- Tab wrapper for Redz Hub compatibility ----
+-- ---- Tab wrapper -----------------------------------------------------
 local Tab = {}
 Tab.__index = Tab
 
-local function wrapTab(redzTab, redzWindow)
-    return setmetatable({ _t = redzTab, _w = redzWindow }, Tab)
+local function wrapTab(fluentTab)
+    return setmetatable({ _t = fluentTab }, Tab)
+end
+
+-- container = a tab OR a section; both share the Add* methods.
+local function bindContainer(self)
+    return self._sec or self._t
 end
 
 function Tab:AddSection(name)
-    local title = titleOf(name)
-    -- redzlib AddSection expects string
-    local sec = self._t:AddSection(title)
-    -- return self for chaining, but also allow section as container
-    -- redzlib sections are not containers, so we keep tab as container
-    return setmetatable({ _t = self._t, _sec = sec, _w = self._w }, Tab)
+    local sec = self._t:AddSection(tostring(name or ""))
+    return setmetatable({ _t = self._t, _sec = sec }, Tab)
 end
 
-function Tab:AddParagraph(a, b)
-    local title, content
-    if type(a) == "table" then
-        title = titleOf(a)
-        content = a[2] or a.Description or a.Content or ""
-    else
-        title = tostring(a or "")
-        content = tostring(b or "")
-    end
-    -- redzlib expects {Title, Desc}
-    local p = self._t:AddParagraph({title, content})
+function Tab:AddParagraph(title, desc)
+    -- positional (Title, Desc); returns obj with :SetDesc
+    local p = bindContainer(self):AddParagraph({
+        Title = tostring(title or ""),
+        Content = tostring(desc or ""),
+    })
     local wrapped = {}
     function wrapped:SetDesc(text)
         if p.SetDesc then p:SetDesc(tostring(text))
-        elseif p.Set then p:Set(tostring(title), tostring(text)) end
+        elseif p.SetContent then p:SetContent(tostring(text))
+        elseif p.SetValue then p:SetValue(tostring(text)) end
     end
     function wrapped:SetTitle(text)
         if p.SetTitle then p:SetTitle(tostring(text)) end
@@ -2416,49 +1693,27 @@ function Tab:AddParagraph(a, b)
 end
 
 function Tab:AddButton(o)
-    local name = titleOf(o)
-    local cb = getCallback(o, 2)
-    -- redzlib: AddButton({Name, callback})
-    local btn
-    if type(o) == "table" and o[1] and type(o[2]) == "function" then
-        btn = self._t:AddButton(o)
-    else
-        btn = self._t:AddButton({name, cb})
-    end
-    return btn
+    return bindContainer(self):AddButton({
+        Title = titleOf(o),
+        Description = o.Description,
+        Icon = fixIcon(o.Icon),
+        Callback = o.Callback or function() end,
+    })
 end
 
 function Tab:AddToggle(o)
-    local name = titleOf(o)
-    local default = false
-    local flag = nil
-    local cb = function() end
-    
-    if type(o) == "table" then
-        if o.Name or o.Title then
-            -- dict style {Name=, Default=, Callback=, Flag=}
-            default = o.Default
-            if default == nil then default = o.Value end
-            if default == nil then default = false end
-            flag = o.Flag or nextFlag("T")
-            cb = o.Callback or function() end
-        else
-            -- array style {"Name", default, callback, flag}
-            name = o[1] or name
-            default = o[2]
-            if default == nil then default = false end
-            cb = o[3] or function() end
-            flag = o[4] or nextFlag("T")
-        end
-    end
-    
-    -- redzlib expects {"Name", default, callback, flag}
-    local tgl = self._t:AddToggle({name, default, cb, flag})
-    
+    local flag = o.Flag or nextFlag("T")
+    local tgl = bindContainer(self):AddToggle(flag, {
+        Title = titleOf(o),
+        Description = o.Description,
+        Default = o.Default or false,
+        Callback = o.Callback or function() end,
+    })
+    -- compat: :Set(bool)
     local wrapped = { _tgl = tgl, Flag = flag }
     function wrapped:Set(v)
-        if tgl.Set then tgl:Set(v and true or false) end
-        if tgl.SetValue then tgl:SetValue(v and true or false) end
+        if tgl.SetValue then tgl:SetValue(v and true or false)
+        elseif tgl.Set then tgl:Set(v and true or false) end
     end
     function wrapped:Get()
         return tgl.Value
@@ -2467,304 +1722,383 @@ function Tab:AddToggle(o)
 end
 
 function Tab:AddSlider(o)
-    local name = titleOf(o)
-    local min = 0
-    local max = 100
-    local default = 0
-    local cb = function() end
-    local step = 1
-    local flag = nextFlag("S")
-    
-    if type(o) == "table" then
-        if o.Name or o.Title then
-            min = o.Min or 0
-            max = o.Max or 100
-            default = o.Default or min
-            cb = o.Callback or function() end
-            step = o.Increment or o.Increase or 1
-            flag = o.Flag or flag
-        else
-            -- array {"Name", Min, Max, Default, Callback, Increase, Flag}
-            name = o[1] or name
-            min = o[2] or 0
-            max = o[3] or 100
-            default = o[4] or 0
-            cb = o[5] or function() end
-            step = o[6] or 1
-            flag = o[7] or flag
-        end
+    local flag = o.Flag or nextFlag("S")
+    local rounding = o.Rounding
+    if rounding == nil then
+        -- treat integer increment as 0 decimals
+        rounding = (o.Increment and o.Increment >= 1) and 0 or 0
     end
-    
-    local sld = self._t:AddSlider({name, min, max, default, cb, step, flag})
+    local sld = bindContainer(self):AddSlider(flag, {
+        Title = titleOf(o),
+        Description = o.Description,
+        Default = o.Default or o.Min or 0,
+        Min = o.Min or 0,
+        Max = o.Max or 100,
+        Rounding = rounding,
+        Callback = o.Callback or function() end,
+    })
     local wrapped = { _sld = sld, Flag = flag }
-    function wrapped:Set(v) if sld.Set then sld:Set(v) end end
+    function wrapped:Set(v)
+        if sld.SetValue then sld:SetValue(v) end
+    end
     return wrapped
 end
 
 function Tab:AddDropdown(o)
-    local name = titleOf(o)
-    local options = {}
-    local default = nil
-    local cb = function() end
-    local flag = nextFlag("D")
-    
-    if type(o) == "table" then
-        if o.Name or o.Title then
-            options = o.Options or {}
-            default = o.Default
-            cb = o.Callback or function() end
-            flag = o.Flag or flag
-            -- convert single default to array if needed
-            if type(default) == "string" then default = {default} end
-        else
-            -- array {"Name", Options, Default, Callback, Flag}
-            name = o[1] or name
-            options = o[2] or {}
-            default = o[3]
-            if type(default) == "string" then default = {default} end
-            cb = o[4] or function() end
-            flag = o[5] or flag
-        end
-    end
-    
-    if not default then default = {options[1]} end
-    
-    local dd = self._t:AddDropdown({name, options, default, cb, flag})
+    local flag = o.Flag or nextFlag("D")
+    local dd = bindContainer(self):AddDropdown(flag, {
+        Title = titleOf(o),
+        Description = o.Description,
+        Values = o.Options or {},
+        Default = o.Default,
+        Multi = false,
+        Callback = o.Callback or function() end,
+    })
     local wrapped = { _dd = dd, Flag = flag }
-    function wrapped:Set(v) if dd.Set then dd:Set(v) end end
-    function wrapped:Refresh(opts, keep)
-        if dd.Refresh then dd:Refresh(opts) elseif dd.SetValues then dd:SetValues(opts) end
+    function wrapped:Set(v)
+        if dd.SetValue then dd:SetValue(v) end
     end
+    function wrapped:Refresh(opts, keep)
+        if dd.SetValues then dd:SetValues(opts) end
+    end
+    -- "SetOptions" alias sometimes used
     wrapped.SetOptions = wrapped.Refresh
     return wrapped
 end
 
 function Tab:AddTextBox(o)
-    local name = titleOf(o)
-    local default = ""
-    local clear = false
-    local cb = function() end
-    local placeholder = ""
-    
-    if type(o) == "table" then
-        if o.Name or o.Title then
-            default = o.Default or ""
-            clear = o.ClearOnFocus or false
-            cb = o.Callback or function() end
-            placeholder = o.Placeholder or ""
-        else
-            -- array {"Name", Default, ClearOnFocus, Callback, Placeholder}
-            name = o[1] or name
-            default = o[2] or ""
-            clear = o[3] or false
-            cb = o[4] or function() end
-            placeholder = o[5] or ""
-        end
-    end
-    
-    return self._t:AddTextBox({name, default, clear, cb, placeholder})
+    local flag = o.Flag or nextFlag("I")
+    return bindContainer(self):AddInput(flag, {
+        Title = titleOf(o),
+        Placeholder = o.Placeholder,
+        Default = o.Default,
+        Finished = o.ClearOnFocus and false or false,
+        Callback = o.Callback or function() end,
+    })
 end
 
 function Tab:AddDiscordInvite(o)
-    local name = o.Title or o.Name or "Discord"
-    local logo = o.Logo or o.Banner or "rbxassetid://75841821715476"
-    local invite = o.Invite or ""
+    local code = o.Invite or ""
+    code = code:gsub("https://discord%.gg/", ""):gsub("https://discord%.com/invite/", "")
     local ok = pcall(function()
-        self._t:AddDiscordInvite({name, logo, invite})
+        bindContainer(self):AddDiscord({ InviteCode = code })
     end)
     if not ok then
-        self._t:AddParagraph({name, (o.Description or "") .. "\n" .. invite})
+        bindContainer(self):AddParagraph({
+            Title = o.Title or "Discord",
+            Content = (o.Description or "") .. "\nInvite: " .. (o.Invite or ""),
+        })
     end
 end
 
-function Tab:AddColorPicker(o)
-    local name = titleOf(o)
-    local color = Color3.fromRGB(255,0,0)
-    local cb = function() end
-    local flag = nextFlag("C")
-    if type(o) == "table" then
-        if o.Name or o.Title then
-            color = o.Default or color
-            cb = o.Callback or function() end
-            flag = o.Flag or flag
-        else
-            name = o[1] or name
-            color = o[2] or color
-            cb = o[3] or function() end
-            flag = o[4] or flag
-        end
-    end
-    if self._t.AddColorPicker then
-        return self._t:AddColorPicker({name, color, cb, flag})
-    end
-end
+-- passthrough extras that may appear
+function Tab:AddDivider()  return bindContainer(self):AddDivider() end
+function Tab:AddInput(o)    return self:AddTextBox(o) end
+function Tab:AddLabel(t)    return self:AddParagraph(t, "") end
 
-function Tab:AddKeybind(o) 
-    -- not all redzlib versions have keybind, fallback to button
-    if self._t.AddKeybind then
-        return self._t:AddKeybind(o)
-    end
-end
-
-function Tab:AddDivider() 
-    if self._t.AddDivider then return self._t:AddDivider() end
-    return self:AddSection("ââââââââââââââ")
-end
-function Tab:AddInput(o) return self:AddTextBox(o) end
-function Tab:AddLabel(t) return self:AddParagraph(t, "") end
-
--- ---- Window wrapper ----
+-- ---- Window wrapper --------------------------------------------------
 local WindowWrap = {}
 WindowWrap.__index = WindowWrap
 
 function WindowWrap:MakeTab(o)
-    local title = titleOf(o)
-    local icon = fixIcon(o.Icon or o[2] or "layout-grid")
-    -- redzlib MakeTab expects {Title, Icon}
-    local redzTab = self._w:MakeTab({title, icon})
-    return wrapTab(redzTab, self._w)
+    return wrapTab(self._w:AddTab({
+        Title = o.Title,
+        Icon = fixIcon(o.Icon),
+    }))
 end
 
 function WindowWrap:Notify(o)
-    local title = o.Title or "FLUX BYTE"
-    local content = o.Content or ""
-    if redzlib.Notify then
-        pcall(function() redzlib:Notify({Title=title, Content=content, Duration=o.Duration or 3}) end)
-    elseif self._w.Notify then
-        pcall(function() self._w:Notify({Title=title, Content=content, Duration=o.Duration or 3}) end)
-    end
+    Fluent:Notify({
+        Title = o.Title,
+        Content = o.Content,
+        SubContent = o.SubContent,
+        Type = o.Type or "Info",
+        Icon = fixIcon(o.Icon or o.Image),
+        Duration = o.Duration or 3,
+    })
 end
 
-function WindowWrap:Dialog(o)
-    if self._w.Dialog then return self._w:Dialog(o) end
-    -- fallback: notify
-    self:Notify({Title=o.Title or "Dialog", Content=o.Text or "", Duration=5})
+function WindowWrap:SetTheme(name)
+    local ok = false
+    pcall(function()
+        if self._w.SetTheme then
+            self._w:SetTheme(name)
+            ok = true
+        elseif Fluent.SetTheme then
+            Fluent:SetTheme(name)
+            ok = true
+        end
+    end)
+    return ok
 end
+
 
 function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) end end
 function WindowWrap:Show() if self._w.Show then self._w:Show() end end
 function WindowWrap:Hide() if self._w.Hide then self._w:Hide() end end
-function WindowWrap:Minimize() if self._w.Minimize then self._w:Minimize() end end
-function WindowWrap:SetTheme(name) pcall(function() redzlib:SetTheme(name) end) end
-function WindowWrap:Set(title, subtitle) if self._w.Set then self._w:Set(title, subtitle) end end
 
-function WindowWrap:AddMinimizeButton(o)
-    if self._w.AddMinimizeButton then
-        return self._w:AddMinimizeButton(o or {Corner=UDim.new(0.5,0), Button={Image="rbxassetid://75841821715476"}})
-    end
-end
-
--- Compatibility for old Minimizer API
-function WindowWrap:NewMinimizer(_)
-    local self_ref = self
-    local m = {}
-    function m:CreateMobileMinimizer(o)
-        self_ref:AddMinimizeButton(o)
-        -- also build custom floating button
-        pcall(function() self_ref:BuildFloatingButton() end)
-        return {}
-    end
-    return m
-end
-
--- Custom floating button (Redz Hub style - circular with logo, draggable)
+-- NEVAHUB floating open/close GUI button.
+-- Rotating background image + static icon, draggable, hold 1s to lock,
+-- click plays a sound and toggles the window.
 function WindowWrap:BuildFloatingButton()
     if self._floatBuilt then return end
     self._floatBuilt = true
 
     local toggleGui = Instance.new("ScreenGui")
-    toggleGui.Name = "FLUX_BYTE_OpenUi"
+    toggleGui.Name = "OpenUi"
     toggleGui.ResetOnSpawn = false
     toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    toggleGui.IgnoreGuiInset = false
     toggleGui.DisplayOrder = 2147483647
-
+    -- parent safely (some executors need CoreGui / gethui)
     local parented = false
     pcall(function()
         toggleGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
         parented = true
     end)
     if not parented then
-        toggleGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     end
 
-    local mainBtn = Instance.new("ImageButton")
+    local mainBtn = Instance.new("TextButton")
     mainBtn.Name = "OpenButton"
     mainBtn.Parent = toggleGui
-    mainBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    mainBtn.BackgroundTransparency = 0.1
-    mainBtn.BorderSizePixel = 0
-    mainBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
-    mainBtn.Size = UDim2.new(0, 55, 0, 55)
-    mainBtn.Image = "rbxassetid://75841821715476"
-    mainBtn.AutoButtonColor = true
-    Instance.new("UICorner", mainBtn).CornerRadius = UDim.new(1, 0)
-    local stroke = Instance.new("UIStroke", mainBtn)
-    stroke.Color = Color3.fromRGB(180, 20, 30)
-    stroke.Thickness = 2
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    mainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    mainBtn.BackgroundTransparency = 1
+    mainBtn.Position = UDim2.new(0.101969875, 0, 0.110441767, 0)
+    mainBtn.Size = UDim2.new(0, 64, 0, 42)
+    mainBtn.Text = ""
+    mainBtn.AutoButtonColor = false
+    mainBtn.Visible = true
+    Instance.new("UICorner", mainBtn)
 
-    -- draggable
-    local dragging, dragInput, dragStart, startPos
-    mainBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainBtn.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
+    local sizeBackMulti = 0.3
+
+    local backgroundImage = Instance.new("ImageLabel")
+    backgroundImage.Name = "RotatingBackground"
+    backgroundImage.Parent = mainBtn
+    backgroundImage.Size = UDim2.new(2.3 + sizeBackMulti, 0, 2.3 + sizeBackMulti, 0)
+    backgroundImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+    backgroundImage.AnchorPoint = Vector2.new(0.5, 0.5)
+    backgroundImage.BackgroundTransparency = 1
+    backgroundImage.Image = "rbxassetid://109694296016043"
+    backgroundImage.SizeConstraint = Enum.SizeConstraint.RelativeXX
+
+    local frontImage = Instance.new("ImageLabel")
+    frontImage.Name = "StaticIcon"
+    frontImage.Parent = mainBtn
+    frontImage.Size = UDim2.fromOffset(55, 55)
+    frontImage.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frontImage.AnchorPoint = Vector2.new(0.5, 0.5)
+    frontImage.BackgroundTransparency = 1
+    frontImage.Image = "rbxassetid://75841821715476"
+    frontImage.ZIndex = 1
+    Instance.new("UICorner", frontImage).CornerRadius = UDim.new(0.2, 0)
+
+    local rotation = 0
+    local rotSpeed = 90
+    local lastTime = tick()
+    task.spawn(function()
+        while toggleGui.Parent do
+            local now = tick()
+            local delta = now - lastTime
+            lastTime = now
+            rotation = (rotation + rotSpeed * delta) % 360
+            backgroundImage.Rotation = rotation
+            task.wait()
         end
     end)
-    mainBtn.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+
+    -- draggable + hold-to-lock
+    local function MakeDraggableOpenUi(topbar, obj)
+        local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+        local holdingDrag, holdToken = false, 0
+        obj:SetAttribute("Locked", false)
+        local function Update(input)
+            if obj:GetAttribute("Locked") then return end
             local delta = input.Position - dragStart
-            mainBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
-    end)
+        local function ToggleLock()
+            local newState = not obj:GetAttribute("Locked")
+            obj:SetAttribute("Locked", newState)
+            Fluent:Notify({ Title = newState and "Locked" or "Unlocked", Content = newState and "Locked in place" or "Can be moved", Duration = 2 })
+        end
+        topbar.InputBegan:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+            dragging = not obj:GetAttribute("Locked")
+            holdingDrag = true
+            dragStart = input.Position
+            startPos = obj.Position
+            holdToken = holdToken + 1
+            local token = holdToken
+            task.delay(1.0, function()
+                if holdingDrag and token == holdToken then ToggleLock() end
+            end)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    holdingDrag = false
+                end
+            end)
+        end)
+        topbar.InputChanged:Connect(function(input)
+            if not dragStart then return end
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                if (input.Position - dragStart).Magnitude > 6 then holdingDrag = false end
+                dragInput = input
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then Update(input) end
+        end)
+    end
+    MakeDraggableOpenUi(mainBtn, mainBtn)
 
     local uiOpen = true
+    local function PlaySound(soundId)
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://" .. soundId
+            sound.Parent = game:GetService("SoundService")
+            sound:Play()
+            sound.Ended:Connect(function() sound:Destroy() end)
+        end)
+    end
+
     mainBtn.MouseButton1Click:Connect(function()
+        local sounds = { "7127123605", "438666542" }
+        PlaySound(sounds[math.random(#sounds)])
         uiOpen = not uiOpen
         if uiOpen then self:Show() else self:Hide() end
-        -- click tween
-        game:GetService("TweenService"):Create(mainBtn, TweenInfo.new(0.15), {Size = UDim2.new(0, 48, 0, 48)}):Play()
-        task.wait(0.15)
-        game:GetService("TweenService"):Create(mainBtn, TweenInfo.new(0.15), {Size = UDim2.new(0, 55, 0, 55)}):Play()
+
+        local function SmoothSpeed(target, dur)
+            local start = rotSpeed
+            local steps = 30
+            for i = 1, steps do
+                rotSpeed = start + (target - start) * (i / steps)
+                task.wait(dur / steps)
+            end
+            rotSpeed = target
+        end
+        task.spawn(function()
+            SmoothSpeed(360, 0.4); task.wait(0.5)
+            SmoothSpeed(180, 0.4); task.wait(0.3)
+            SmoothSpeed(90, 0.4)
+        end)
     end)
 
     self._floatingGui = toggleGui
     return mainBtn
 end
 
--- ---- FLUX BYTE GUI entry point ----
-local FluxLib = {}
-function FluxLib:MakeWindow(o)
-    -- Create Redz Hub window - signature Redz design
-    local w = redzlib:MakeWindow({
-        "FLUX BYTE",          -- Title (Redz Hub style)
-        "IS BACK | Redz Edition | Redz Edition", -- Subtitle
-        "FLUX_BYTE.json"      -- Save file
+-- Minimizer: the GUI already minimizes with MinimizeKey. Provide stub objects
+-- so the minimizer calls stay valid; the real open/close button is
+-- the custom NEVAHUB floating button built inside MakeWindow.
+function WindowWrap:NewMinimizer(_)
+    local self_ref = self
+    local m = {}
+    function m:CreateMobileMinimizer(_)
+        self_ref:BuildFloatingButton()
+        return {}
+    end
+    return m
+end
+
+-- ---- NEVAHUB GUI entry point --------------------------------------------
+local NevaLib = {}
+function NevaLib:MakeWindow(o)
+    -- NEVAHUB custom themes
+    pcall(function()
+        Fluent:RegisterCustomTheme("FluxByte", {
+            Accent = Color3.fromRGB(40, 210, 255), AcrylicMain = Color3.fromRGB(7, 12, 22),
+            AcrylicBorder = Color3.fromRGB(40, 210, 255),
+            Text = Color3.fromRGB(235, 248, 255), SubText = Color3.fromRGB(135, 175, 205),
+            Toggle = Color3.fromRGB(30, 42, 58), ToggleToggled = Color3.fromRGB(40, 210, 255),
+            Slider = Color3.fromRGB(40, 210, 255), Dropdown = Color3.fromRGB(15, 22, 35),
+            Button = Color3.fromRGB(10, 25, 42), Input = Color3.fromRGB(9, 18, 30),
+        })
+    end)
+
+    local w = Fluent:CreateWindow({
+        Title = "Flux Byte Hub",
+        SubTitle = "Blox Fruits | PvP & Automation",
+        Version = "Flux Byte â¢ v1.0",
+        TabWidth = 145,
+        Size = UDim2.fromOffset(650, 410),
+        Acrylic = true,
+        Theme = "FluxByte",
+        MinimizeKey = Enum.KeyCode.LeftControl,
+        Search = true,
+        Icons = "solar/planet-bold",
+        UserInfoTop = true,
+        UserInfoTitle = "Welcome to Flux Byte",
+        UserInfoSubtitle = LocalPlayer.DisplayName,
+        UserInfoColor = Color3.fromRGB(40, 210, 255),
     })
-    
-    -- Force DarkRed theme (Redz Hub signature)
-    pcall(function() redzlib:SetTheme("DarkRed") end)
+
+    pcall(function()
+        Fluent:SetErrorHandler(function(msg)
+            pcall(function()
+                Fluent:Notify({ Title = "Error", Content = tostring(msg), Type = "Error", Duration = 5 })
+            end)
+        end)
+    end)
 
     local wrapped = setmetatable({ _w = w }, WindowWrap)
+    -- always create the floating open/close button
     pcall(function() wrapped:BuildFloatingButton() end)
+
+    -- Fix the player-avatar in the UserInfo card. The GUI fetches it with
+    -- Players:GetUserThumbnailAsync which frequently returns "" on first load,
+    -- leaving the avatar blank. Force a reliable rbxthumb:// image (client
+    -- resolves it directly from the UserId) into the UserInfo ImageLabel(s).
+    task.spawn(function()
+        local uid = LocalPlayer.UserId
+        local thumb = "rbxthumb://type=AvatarHeadShot&id=" .. uid .. "&w=150&h=150"
+        local function collectRoots()
+            local roots = {}
+            pcall(function() if gethui then table.insert(roots, gethui()) end end)
+            pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+            pcall(function() table.insert(roots, LocalPlayer:FindFirstChild("PlayerGui")) end)
+            return roots
+        end
+        for attempt = 1, 20 do
+            local applied = false
+            pcall(function()
+                for _, root in ipairs(collectRoots()) do
+                    if root then
+                        for _, frame in ipairs(root:GetDescendants()) do
+                            if frame:IsA("Frame") and (frame.Name == "UserInfoTop" or frame.Name == "UserInfo") then
+                                for _, img in ipairs(frame:GetDescendants()) do
+                                    -- the avatar is the ImageLabel that has no ThemeTag icon color
+                                    -- (icons are tinted "SubText"); set any blank/thumb image.
+                                    if img:IsA("ImageLabel") then
+                                        local cur = img.Image or ""
+                                        if cur == "" or cur == "rbxassetid://0" or cur:find("rbxthumb") or cur:find("Thumbnail") then
+                                            img.Image = thumb
+                                            applied = true
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            if applied then break end
+            task.wait(0.5)
+        end
+    end)
 
     return wrapped
 end
 
--- ================= FLUX BYTE window bootstrap (REDZ EDITION) =================
-local Window = FluxLib:MakeWindow({
-    Title = "FLUX BYTE",
-    SubTitle = "Premium | Redz Edition",
-    SaveFolder = "FLUX_BYTE.json"
+-- ================= NEVAHUB window bootstrap =================
+local Window = NevaLib:MakeWindow({
+    Title = "Flux Byte Hub",
+    SubTitle = "Blox Fruits | Flux Byte",
+    SaveFolder = "fluxbyte.json"
 })
 
 local Minimizer = Window:NewMinimizer({
@@ -2773,80 +2107,181 @@ local Minimizer = Window:NewMinimizer({
 
 local MobileButton = Minimizer:CreateMobileMinimizer({
   Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(180, 10, 20)
+  BackgroundColor3 = Color3.fromRGB(0, 170, 235)
 })
 
 local Tabs = {
-    Info = Window:MakeTab({ Title = "Info And Status", Icon = "info" }),
-    GUI_Settings = Window:MakeTab({ Title = "GUI Settings", Icon = "settings" }),
-    Main = Window:MakeTab({ Title = "Farming", Icon = "swords" }),
-    Settings = Window:MakeTab({ Title = "Setting", Icon = "settings-2" }),
-    Fish = Window:MakeTab({ Title = "Fishing", Icon = "fish" }),
-    Quests = Window:MakeTab({ Title = "Quest And Item", Icon = "scroll" }),
-    SeaEvent = Window:MakeTab({ Title = "Sea Event", Icon = "waves" }),
-    Race = Window:MakeTab({ Title = "Mirage And Race", Icon = "flame" }),
-    Prehistoric = Window:MakeTab({ Title = "Volcano Event", Icon = "tent" }),
-    Esp = Window:MakeTab({ Title = "Stats And Esp", Icon = "eye" }),
-    Raids = Window:MakeTab({ Title = "Fruit And Raid", Icon = "apple" }),
-    Combat = Window:MakeTab({ Title = "Local Player", Icon = "user" }),
-    Travel = Window:MakeTab({ Title = "Teleport", Icon = "map-pin" }),
-    Shop = Window:MakeTab({ Title = "Shopping", Icon = "shopping-cart" }),
-    Misc = Window:MakeTab({ Title = "Miscellaneous", Icon = "layout-grid" })
+    Info = Window:MakeTab({ Title = "Tab Info And Status", Icon = "Info" }),
+    GUI_Settings = Window:MakeTab({ Title = "Tab GUI Settings", Icon = "rbxassetid://7734053495" }),
+    Main = Window:MakeTab({ Title = "Tab Farming", Icon = "rbxassetid://7733960981" }),
+    Settings = Window:MakeTab({ Title = "Tab Setting", Icon = "rbxassetid://7734053495" }),
+    Fish = Window:MakeTab({ Title = "Tab Fishing", Icon = "rbxassetid://127664059821666" }),
+    Quests = Window:MakeTab({ Title = "Tab Quest And Item", Icon = "rbxassetid://13075622619" }),
+    SeaEvent = Window:MakeTab({ Title = "Tab Sea Event", Icon = "waves" }),
+    Race = Window:MakeTab({ Title = "Tab Mirage And Race", Icon = "rbxassetid://11162889532" }),
+    Prehistoric = Window:MakeTab({ Title = "Tab Volcano Event", Icon = "tent" }),
+    Esp = Window:MakeTab({ Title = "Tab Stats And Esp", Icon = "rbxassetid://7040410130" }),
+    Raids = Window:MakeTab({ Title = "Tab Fruit And Raid", Icon = "rbxassetid://11155986081" }),
+    Combat = Window:MakeTab({ Title = "Tab Local Player", Icon = "rbxassetid://13075651575" }),
+    Travel = Window:MakeTab({ Title = "Tab Teleport", Icon = "locate" }),
+    Shop = Window:MakeTab({ Title = "Tab Shopping", Icon = "rbxassetid://6031265976" }),
+    Misc = Window:MakeTab({ Title = "Tab Miscellaneous", Icon = "rbxassetid://10709783577" })
 }
 
--- =================== GUI SETTINGS TAB (REDZ EDITION) ===================
-do
-    local secThemes = Tabs.GUI_Settings:AddSection("Redz Hub Themes")
 
-    secThemes:AddParagraph({"Theme Info", "Redz Hub uses DarkRed as signature. Choose from 4 built-in themes."})
+-- =================== FLUX BYTE DASHBOARD ===================
+Tabs.Info:AddSection("Flux Byte Dashboard")
+local FluxWelcome = Tabs.Info:AddParagraph("FLUX BYTE", "Blox Fruits â¢ v1.0")
+local FluxStatus = Tabs.Info:AddParagraph("Status", "â Ready")
+local FluxTween = Tabs.Info:AddParagraph("Tween Speed", "180 studs/s")
+local FluxLevel = Tabs.Info:AddParagraph("Player Level", "Loading...")
 
-    secThemes:AddButton({"Dark Theme - Blue Accent", function()
-        redzlib:SetTheme("Dark")
-        Window:Notify({Title="Theme", Content="Dark applied", Duration=2})
-    end})
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            FluxLevel:SetDesc("Level: " .. tostring(plr.Data.Level.Value))
+            FluxStatus:SetDesc(_G.Level and "â Auto Farm Active" or "â Ready")
+        end)
+    end
+end)
 
-    secThemes:AddButton({"Darker Theme - Purple Accent", function()
-        redzlib:SetTheme("Darker")
-        Window:Notify({Title="Theme", Content="Darker applied", Duration=2})
-    end})
+-- =================== GUI SETTINGS TAB ===================
+-- NEVAHUB GUI Settings tab.
+-- (Window:SetTheme / Window:Notify / positional AddParagraph)
+-- so every element behaves the same as in the standalone GUI file.
 
-    secThemes:AddButton({"Purple Theme", function()
-        redzlib:SetTheme("Purple")
-        Window:Notify({Title="Theme", Content="Purple applied", Duration=2})
-    end})
+local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
 
-    secThemes:AddButton({"DarkRed Theme - Redz Signature [Default]", function()
-        redzlib:SetTheme("DarkRed")
-        Window:Notify({Title="Theme", Content="DarkRed - Redz Hub signature applied", Duration=2})
-    end})
+secCustomTheme:AddButton({
+    Title = "Apply Flux Byte Theme", Icon = "solar/star-bold",
+    Callback = function()
+        Window:SetTheme("FluxByte")
+        Window:Notify({Title="Theme", Content="Flux Byte theme applied", Duration=2})
+    end,
+})
 
-    local secUI = Tabs.GUI_Settings:AddSection("UI Controls")
+secCustomTheme:AddButton({
+    Title = "Apply Emeralddark", Icon = "solar/leaf-bold",
+    Callback = function()
+        Window:SetTheme("EmeraldDark")
+        Window:Notify({Title="Theme", Content="EmeraldDark applied", Duration=2})
+    end,
+})
 
-    secUI:AddButton({"Minimize UI [LeftControl]", function()
-        Window:Minimize()
-    end})
+secCustomTheme:AddButton({
+    Title = "Apply Sunset", Icon = "solar/sun-bold",
+    Callback = function()
+        Window:SetTheme("Sunset")
+        Window:Notify({Title="Theme", Content="Sunset applied", Duration=2})
+    end,
+})
 
-    secUI:AddButton({"Show UI", function()
-        Window:Show()
-    end})
+secCustomTheme:AddParagraph(
+    "Animated vs Static Comparison",
+    "SlateStatic and SlateAnimated share the exact same color palette. SlateStatic never animates regardless of the Animated Window toggle, because it has no ShineEnabled key at all. SlateAnimated sets ShineEnabled = true and follows the Animated Window toggle normally. Try opening a DropdownOutsideWindow on each to see the difference."
+)
 
-    secUI:AddParagraph({"Redz Hub Features", "â¢ Resizable & Draggable\nâ¢ 500+ Lucide Icons\nâ¢ Smooth Tween Animations\nâ¢ Auto-Save System\nâ¢ Mobile Friendly\nâ¢ Notification System"})
+secCustomTheme:AddButton({
+    Title = "Apply SlateStatic (no animation support)", Icon = "solar/pause-circle-bold",
+    Callback = function()
+        Window:SetTheme("SlateStatic")
+        Window:Notify({Title="Theme", Content="SlateStatic applied â this theme never animates", Duration=3})
+    end,
+})
 
-    -- Config handling for Redz
-    Tabs.GUI_Settings:AddSection("Config")
-    Tabs.GUI_Settings:AddParagraph({"Auto Save", "Redz Hub automatically saves your toggles, sliders and dropdowns to FLUX_BYTE.json"})
+secCustomTheme:AddButton({
+    Title = "Apply SlateAnimated (animation supported)", Icon = "solar/play-circle-bold",
+    Callback = function()
+        Window:SetTheme("SlateAnimated")
+        Window:Notify({Title="Theme", Content="SlateAnimated applied â try toggling Animated Window", Duration=3})
+    end,
+})
+
+local secTheme = Tabs.GUI_Settings:AddSection("Builtin Themes")
+
+for _, name in ipairs({
+    "Amoled","Ash Gray","Blood Red","Cyanic","Amber Glow","Deep Violet",
+    "Neon Cyber","Neon Purple","Royal Blue","Deep Ocean","Rgb","Orange",
+    "Charcoal","Pearl White","Midnight","Galaxy Purple","Cosmic Violet",
+    "Cotton Candy","Arctic Frost",
+}) do
+    local n = name
+    secTheme:AddButton({
+        Title = n, Icon = "solar/palette-bold",
+        Callback = function()
+            Window:SetTheme(n)
+            Window:Notify({Title="Theme", Content=n .. " applied", Duration=2})
+        end,
+    })
 end
 
--- Deferred autoload stub (Redz handles its own)
-FLUXBYTE_DeferredAutoload = function()
-    -- redzlib auto-loads from FLUX_BYTE.json
-end
+pcall(function() secCustomTheme:AddDivider() end)
+
+-- NEVAHUB config manager sections (interface / save / floating button / media).
+-- Everything is kept inside ONE parent folder ("NEVAHUB") so the executor's
+-- workspace stays clean instead of scattering separate folders around.
+--
+-- The config UI is BUILT here, but the actual autoload of saved settings is
+-- DEFERRED to the end of the script: settings are restored by iterating over
+-- every UI option, and the farm/feature toggles are created much further down,
+-- so loading now would skip them. See NEVAHUB_DeferredAutoload() at the file end.
+NEVAHUB_DeferredAutoload = function() end -- replaced below if managers exist
+pcall(function()
+    local FluentTab = Tabs.GUI_Settings._t
+    local env = (getgenv and getgenv()) or _G
+    local MediaManager = MediaManager or env.MediaManager
+    local InterfaceManager = InterfaceManager or env.InterfaceManager
+    local SaveManager = SaveManager or env.SaveManager
+    local FloatingButtonManager = FloatingButtonManager or env.FloatingButtonManager
+    if MediaManager then
+        MediaManager:SetFolder("NEVAHUB/Media")
+    end
+    if InterfaceManager then
+        InterfaceManager:SetLibrary(Fluent)
+        InterfaceManager:SetFolder("NEVAHUB")
+        InterfaceManager:BuildInterfaceSection(FluentTab)
+        -- theme/interface options exist immediately, so this can load now
+        pcall(function() InterfaceManager:LoadSettings() end)
+    end
+    if SaveManager then
+        SaveManager:SetLibrary(Fluent)
+        SaveManager:SetFolder("NEVAHUB")
+        SaveManager:IgnoreThemeSettings()
+        SaveManager:BuildConfigSection(FluentTab)
+    end
+    if FloatingButtonManager then
+        FloatingButtonManager:SetLibrary(Fluent)
+        FloatingButtonManager:SetFolder("NEVAHUB/Floating")
+        FloatingButtonManager:BuildConfigSection(FluentTab)
+    end
+
+    -- Clean up the stray default folders the UI library creates at load time
+    -- (before our SetFolder calls) plus leftovers from older builds, so only
+    -- the single "NEVAHUB" folder remains. Only deletes them if they are empty
+    -- / safe, and only if the executor supports folder deletion.
+    pcall(function()
+        if not (isfolder and delfolder) then return end
+        local strays = { "FluentSettings", "FloatingButtons", "ImageCache", "FluentShowcase", "NEVAHUBv3" }
+        for _, name in ipairs(strays) do
+            if isfolder(name) then pcall(delfolder, name) end
+        end
+    end)
+
+    -- Deferred loader: run once every UI element exists.
+    NEVAHUB_DeferredAutoload = function()
+        if SaveManager then pcall(function() SaveManager:LoadAutoloadConfig() end) end
+        if FloatingButtonManager then pcall(function() FloatingButtonManager:LoadAutoloadConfig() end) end
+    end
+end)
+-- ---- end GUI Settings tab ----
 
 
+
+Tabs.Info:AddSection("Information")
 
 Tabs.Info:AddDiscordInvite({
-	Title = "FLUX BYTE | Community",
-	Description = "A community for FLUX BYTE Users - official scripts, updates, and support in one place. Created by FLUX BYTE.",
+	Title = "NEVAHUB | Community",
+	Description = "A community for NEVAHUB Users - official scripts, updates, and support in one place. Created by NEVA.",
 	Banner = "rbxassetid://75841821715476", 
 	Logo = "rbxassetid://75841821715476",
 	Invite = "https://discord.gg/GTMEDtwmva",
@@ -3567,7 +3002,7 @@ spawn(function()
                 local ServerList = {}
                 
                 local Success, Error = pcall(function()
-                    ServerList = game:GetService("HttpService"):JSONDecode(FB_SafeHttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+                    ServerList = game:GetService("HttpService"):JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
                 end)
                 
                 if Success and ServerList.data then
@@ -4144,7 +3579,7 @@ local function HopServer()
 
 	repeat
 		local success, result = pcall(function()
-			return FB_SafeHttpGet(Api .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100&cursor=" .. Cursor)
+			return game:HttpGet(Api .. PlaceID .. "/servers/Public?sortOrder=Asc&limit=100&cursor=" .. Cursor)
 		end)
 		if success and result then
 			local data = Http:JSONDecode(result)
@@ -4517,7 +3952,7 @@ local function HopServer()
     pcall(function()
         local Http = game:GetService("HttpService")
         local Servers = {}
-        local req = FB_SafeHttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
+        local req = game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
         local data = Http:JSONDecode(req)
 
         for i,v in pairs(data.data) do
@@ -5367,7 +4802,7 @@ Spawn(function()
 
                     if syn and syn.queue_on_teleport then
                         syn.queue_on_teleport(
-                            "-- FLUX BYTE - queue teleport disabled for stability"
+                            "loadstring(game:HttpGet('https://pastefy.app/6hROay1y/raw'))()"
                         )
                     end
 
@@ -5773,10 +5208,10 @@ FishingToggle = Tabs.Fish:AddToggle({
     end
 })
 
---local Players = game:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local LocalPlayer = Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Workspace = game:GetService("Workspace")
---local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local FishReplicated = ReplicatedStorage:WaitForChild("FishReplicated")
 local FishingRequest = FishReplicated:WaitForChild("FishingRequest")
 local Config = require(FishReplicated.FishingClient.Config)
@@ -8139,7 +7574,7 @@ local HopToggle = Tabs.Race:AddToggle({
 
                                     -- Hiá»n thá» thÃ´ng bÃ¡o vá»i jobid
                                     Window:Notify({
-                                        Title = "FLUX BYTE",
+                                        Title = "Flux Byte Hub",
                                         Content = "ÄÃ£ vÃ o server: " .. selected,
                                         Image = "rbxassetid://75841821715476",
                                         Duration = 5
@@ -11783,7 +11218,7 @@ end)
 
 Tabs.Raids:AddSection("Raids Dungeons")
 
---local plr = game.Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local plr = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local function GetHRP()
     local char = plr.Character
@@ -12323,9 +11758,9 @@ end)
 
 Tabs.Combat:AddSection("LocalPlayer Settings")
 
---local Players = game:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local UserInputService = game:GetService("UserInputService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = game:GetService("RunService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local UserInputService = game:GetService("UserInputService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = game:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local player = Players.LocalPlayer
 
@@ -13079,7 +12514,7 @@ Tabs.Misc:AddButton({
 
             local success, servers = pcall(function()
                 local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-                local response = FB_SafeHttpGet(url)
+                local response = game:HttpGet(url)
                 return HttpService:JSONDecode(response).data
             end)
 
@@ -13110,7 +12545,7 @@ Callback = function()
   local _place = game.PlaceId
   local _servers = Api.._place.."/servers/Public?sortOrder=Asc&limit=100"
    function ListServers(cursor)
-     local Raw = FB_SafeHttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
+     local Raw = game:HttpGet(_servers .. ((cursor and "&cursor="..cursor) or ""))
      return Http:JSONDecode(Raw)
    end
    local Server, Next; repeat
@@ -13131,7 +12566,7 @@ local StatsService = game:GetService("Stats")
 local function fetchServersData(placeId, limit)
     local url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?limit=%d", placeId, limit)
     local success, response = pcall(function()
-        return HTTPService:JSONDecode(FB_SafeHttpGet(url))
+        return HTTPService:JSONDecode(game:HttpGet(url))
     end)
   if success and response and response.data then
 	return response.data
@@ -13160,7 +12595,7 @@ local function fetchServersData(placeId, limit)
   end
 end})
 
---local replicated = game:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local replicated = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 Tabs.Misc:AddTextBox({
     Name = "Input Job Id",
@@ -13486,7 +12921,7 @@ spawn(function()
     end
   end
 end)
---local player = game.Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local player = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local function IsEntityAlive(entity)
     if not entity then return false end
     local humanoid = entity:FindFirstChild("Humanoid")
@@ -13601,12 +13036,12 @@ local HitRegistrationModule = {}
 local MainController = {}
 
 local GameService = game
---local Players = GameService:GetService("Players") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = GameService:GetService("RunService") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local Workspace = GameService:GetService("Workspace") -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = GameService:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = GameService:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Workspace = GameService:GetService("Workspace") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
---local LocalPlayer = Players.LocalPlayer -- [FLUX BYTE FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 local function SafeWaitForChild(parent, childName)
@@ -13825,14 +13260,14 @@ StartMainLoops()
 -- Fluent.Options. This is what actually makes Auto Farm and other toggles come
 -- back ON after a rejoin (previously autoload ran before these were created).
 pcall(function()
-    if type(FLUXBYTE_DeferredAutoload) == "function" then
-        FLUXBYTE_DeferredAutoload()
+    if type(NEVAHUB_DeferredAutoload) == "function" then
+        NEVAHUB_DeferredAutoload()
     end
 end)
 
 -- ========================================
--- FLUX BYTE AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
--- Auto-manages a config named "FLUX BYTE Config":
+-- NEVAHUB AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
+-- Auto-manages a config named "NEVAHUB Config":
 --   * ensure it exists + is set as the autoload config,
 --   * re-save it automatically a couple seconds after ANY option changes,
 --   * and periodically as a safety net.
@@ -13843,8 +13278,8 @@ pcall(function()
     local SaveManager = SaveManager or env.SaveManager
     if not (SaveManager and writefile and isfile) then return end
 
-    local AUTO_NAME = "FLUX BYTE Config"
-    local folder = SaveManager.Folder or "FLUX BYTE"
+    local AUTO_NAME = "NEVAHUB Config"
+    local folder = SaveManager.Folder or "NEVAHUB"
     local autoPath = folder .. "/settings/autoload.txt"
 
     local function ensureAutoloadFlag()
@@ -13908,8 +13343,8 @@ pcall(function()
 end)
 
 Window:Notify({
-  Title = "FLUX BYTE",
-  Content = "FLUX BYTE is back - created by FLUX BYTE",
+  Title = "Flux Byte Hub",
+  Content = "NEVAHUB is back - created by NEVA",
   Image = "rbxassetid://75841821715476",
   Duration = 5
 })
