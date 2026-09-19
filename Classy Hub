@@ -65,13 +65,13 @@ do
 end
 
 -- ========================================
--- NEVAHUB SETTINGS PERSISTENCE
+-- VYROX SETTINGS PERSISTENCE
 -- Saves data to a JSON file so it survives rejoins.
 -- Safe no-ops if the executor lacks file functions.
 -- ========================================
 do
   local HttpService = game:GetService("HttpService")
-  local FolderName = "NEVAHUB"
+  local FolderName = "VYROX"
   local FileName = "Settings.json"
   local FullPath = FolderName .. "/" .. FileName
 
@@ -116,7 +116,7 @@ do
 end
 
 -- ========================================
--- NEVAHUB PERFORMANCE / ANTI-SPAM HOOKS
+-- VYROX PERFORMANCE / ANTI-SPAM HOOKS
 -- Silences error/warn spam, kills the Death effect + NPC guide updates,
 -- and hides decorative Rocks/Foam. All wrapped in pcall so a missing
 -- object or executor limitation never breaks the main script.
@@ -159,7 +159,7 @@ pcall(function()
 end)
 
 -- ========================================
--- NEVAHUB FULL BRIGHT - brighter, readable lighting.
+-- VYROX FULL BRIGHT - brighter, readable lighting.
 -- ========================================
 pcall(function()
   Lighting.Ambient = Color3.new(0.695, 0.695, 0.695)
@@ -170,7 +170,7 @@ pcall(function()
 end)
 
 -- ========================================
--- NEVAHUB AUTO KEN (Observation Haki).
+-- VYROX AUTO KEN (Observation Haki).
 -- Off by default; enable with _G.AutoKen = true.
 -- ========================================
 _G.AutoKen = _G.AutoKen or false
@@ -494,7 +494,7 @@ end
 -- loaded -- i.e. "the script cannot be executed" for some people while it
 -- runs fine for you. Now it degrades to no aim-hook instead of dying.
 if not (getrawmetatable and setreadonly and newcclosure and getnamecallmethod) then
-  warn("[Flux Byte] executor lacks metatable hook API; aim/mouse-position hook disabled")
+  warn("[VYROX] executor lacks metatable hook API; aim/mouse-position hook disabled")
 else
 pcall(function()
 local gg = getrawmetatable(game)
@@ -1565,9 +1565,9 @@ QuestNeta = function()
 end
 
 -- =====================================================================
--- NEVAHUB GUI
+-- VYROX GUI
 -- Exposes the API surface used by this script:
---   NevaLib:MakeWindow -> creates the window
+--   VyroxLib:MakeWindow -> creates the window
 --   Window:MakeTab / :NewMinimizer / :CreateMobileMinimizer / :Notify
 --   Tab:AddSection / AddToggle / AddButton / AddSlider / AddDropdown /
 --       AddParagraph / AddTextBox / AddDiscordInvite
@@ -1610,25 +1610,25 @@ do
   end
 
   if not Fluent then
-    local msg = "[Flux Byte] UI library could not load (" .. tostring(lastErr) ..
+    local msg = "[VYROX] UI library could not load (" .. tostring(lastErr) ..
       "). Your executor's HttpGet is likely blocked or does not follow redirects."
     warn(msg)
     pcall(function()
       game:GetService("StarterGui"):SetCore("SendNotification",
-        { Title = "Flux Byte failed", Text = "UI library download blocked by your executor.", Duration = 15 })
+        { Title = "VYROX failed", Text = "UI library download blocked by your executor.", Duration = 15 })
     end)
     error(msg, 0)
   end
 end
 
 local UserInputService = game:GetService("UserInputService")
---local LocalPlayer = game:GetService("Players").LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = game:GetService("Players").LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 -- unique-flag generator (Fluent wants a unique flag id per stateful element)
 local _flagN = 0
 local function nextFlag(prefix)
     _flagN = _flagN + 1
-    return "NEVAHUB_" .. (prefix or "F") .. "_" .. _flagN
+    return "VYROX_" .. (prefix or "F") .. "_" .. _flagN
 end
 
 -- normalize an icon string to something the GUI accepts.
@@ -1814,7 +1814,7 @@ function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) 
 function WindowWrap:Show() if self._w.Show then self._w:Show() end end
 function WindowWrap:Hide() if self._w.Hide then self._w:Hide() end end
 
--- NEVAHUB floating open/close GUI button.
+-- VYROX floating open/close GUI button.
 -- Rotating background image + static icon, draggable, hold 1s to lock,
 -- click plays a sound and toggles the window.
 function WindowWrap:BuildFloatingButton()
@@ -1840,10 +1840,10 @@ function WindowWrap:BuildFloatingButton()
     local mainBtn = Instance.new("TextButton")
     mainBtn.Name = "OpenButton"
     mainBtn.Parent = toggleGui
-    mainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    mainBtn.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
     mainBtn.BackgroundTransparency = 1
     mainBtn.Position = UDim2.new(0.101969875, 0, 0.110441767, 0)
-    mainBtn.Size = UDim2.new(0, 64, 0, 42)
+    mainBtn.Size = UDim2.new(0, 74, 0, 48)
     mainBtn.Text = ""
     mainBtn.AutoButtonColor = false
     mainBtn.Visible = true
@@ -1858,7 +1858,7 @@ function WindowWrap:BuildFloatingButton()
     backgroundImage.Position = UDim2.new(0.5, 0, 0.5, 0)
     backgroundImage.AnchorPoint = Vector2.new(0.5, 0.5)
     backgroundImage.BackgroundTransparency = 1
-    backgroundImage.Image = "rbxassetid://109694296016043"
+    backgroundImage.Image = "rbxassetid://6031097224"
     backgroundImage.SizeConstraint = Enum.SizeConstraint.RelativeXX
 
     local frontImage = Instance.new("ImageLabel")
@@ -1868,9 +1868,26 @@ function WindowWrap:BuildFloatingButton()
     frontImage.Position = UDim2.new(0.5, 0, 0.5, 0)
     frontImage.AnchorPoint = Vector2.new(0.5, 0.5)
     frontImage.BackgroundTransparency = 1
-    frontImage.Image = "rbxassetid://75841821715476"
+    frontImage.Image = ""
     frontImage.ZIndex = 1
     Instance.new("UICorner", frontImage).CornerRadius = UDim.new(0.2, 0)
+
+    local logo = Instance.new("TextLabel")
+    logo.Name = "VYROXLogo"
+    logo.Parent = mainBtn
+    logo.Size = UDim2.fromScale(1, 1)
+    logo.BackgroundTransparency = 1
+    logo.Text = "V"
+    logo.Font = Enum.Font.GothamBlack
+    logo.TextSize = 24
+    logo.TextColor3 = Color3.fromRGB(238, 242, 255)
+    logo.ZIndex = 2
+
+    local logoStroke = Instance.new("UIStroke")
+    logoStroke.Thickness = 1.2
+    logoStroke.Transparency = 0.35
+    logoStroke.Color = Color3.fromRGB(103, 92, 255)
+    logoStroke.Parent = logo
 
     local rotation = 0
     local rotSpeed = 90
@@ -1971,7 +1988,7 @@ end
 
 -- Minimizer: the GUI already minimizes with MinimizeKey. Provide stub objects
 -- so the minimizer calls stay valid; the real open/close button is
--- the custom NEVAHUB floating button built inside MakeWindow.
+-- the custom VYROX floating button built inside MakeWindow.
 function WindowWrap:NewMinimizer(_)
     local self_ref = self
     local m = {}
@@ -1982,36 +1999,53 @@ function WindowWrap:NewMinimizer(_)
     return m
 end
 
--- ---- NEVAHUB GUI entry point --------------------------------------------
-local NevaLib = {}
-function NevaLib:MakeWindow(o)
-    -- NEVAHUB custom themes
+-- ---- VYROX GUI entry point --------------------------------------------
+local VyroxLib = {}
+function VyroxLib:MakeWindow(o)
+    -- VYROX custom themes
     pcall(function()
-        Fluent:RegisterCustomTheme("FluxByteRedz", {
-            Accent = Color3.fromRGB(126, 92, 255), AcrylicMain = Color3.fromRGB(18, 18, 23),
-            Text = Color3.fromRGB(245, 245, 248), SubText = Color3.fromRGB(155, 155, 170),
-            ToggleToggled = Color3.fromRGB(126, 92, 255),
-            Element = Color3.fromRGB(28, 28, 35),
-            Hover = Color3.fromRGB(38, 38, 48),
-            Border = Color3.fromRGB(48, 48, 60),
+        Fluent:RegisterCustomTheme("NeonBlue", {
+            Accent = Color3.fromRGB(0, 180, 255), AcrylicMain = Color3.fromRGB(10, 14, 28),
+            Text = Color3.fromRGB(230, 245, 255), SubText = Color3.fromRGB(120, 170, 220),
+            ToggleToggled = Color3.fromRGB(0, 180, 255),
+        })
+    end)
+
+    -- VYROX redesign: compact dark dashboard, wider content canvas,
+    -- cool cyan/violet accent, and a cleaner navigation-first layout.
+    pcall(function()
+        Fluent:RegisterCustomTheme("VYROX", {
+            Background = Color3.fromRGB(7, 9, 14),
+            AcrylicMain = Color3.fromRGB(10, 13, 21),
+            AcrylicBorder = Color3.fromRGB(35, 42, 60),
+            Tab = Color3.fromRGB(12, 16, 25),
+            Section = Color3.fromRGB(11, 14, 22),
+            Element = Color3.fromRGB(15, 19, 29),
+            ElementHover = Color3.fromRGB(21, 27, 40),
+            Text = Color3.fromRGB(238, 242, 255),
+            SubText = Color3.fromRGB(145, 154, 178),
+            Accent = Color3.fromRGB(103, 92, 255),
+            Toggle = Color3.fromRGB(103, 92, 255),
+            ToggleToggled = Color3.fromRGB(63, 220, 190),
+            Slider = Color3.fromRGB(103, 92, 255),
         })
     end)
 
     local w = Fluent:CreateWindow({
-        Title = "Flux Byte | Blox Fruits",
-        SubTitle = "Blox Fruits â¢ v1.0",
-        Version = "FLUX BYTE",
-        TabWidth = 155,
-        Size = UDim2.fromOffset(760, 500),
-        Acrylic = false,
-        Theme = "FluxByteRedz",
+        Title = "VYROX",
+        SubTitle = "BLOX FRUITS â¢ CONTROL CENTER",
+        Version = "2.0",
+        TabWidth = 178,
+        Size = UDim2.fromOffset(820, 520),
+        Acrylic = true,
+        Theme = "VYROX",
         MinimizeKey = Enum.KeyCode.LeftControl,
         Search = true,
-        Icons = "lucide",
+        Icons = "lucide/",
         UserInfoTop = false,
-        UserInfoTitle = "Flux Byte",
+        UserInfoTitle = "Operator",
         UserInfoSubtitle = LocalPlayer.DisplayName,
-        UserInfoColor = Color3.fromRGB(126, 92, 255),
+        UserInfoColor = Color3.fromRGB(103, 92, 255),
     })
 
     pcall(function()
@@ -2071,11 +2105,11 @@ function NevaLib:MakeWindow(o)
     return wrapped
 end
 
--- ================= NEVAHUB window bootstrap =================
-local Window = NevaLib:MakeWindow({
-    Title = "Flux Byte | Blox Fruits",
-    SubTitle = "Blox Fruits â¢ v1.0",
-    SaveFolder = "fluxbyte.json"
+-- ================= VYROX window bootstrap =================
+local Window = VyroxLib:MakeWindow({
+    Title = "VYROX",
+    SubTitle = "IS BACK",
+    SaveFolder = "vyrox.json"
 })
 
 local Minimizer = Window:NewMinimizer({
@@ -2084,65 +2118,39 @@ local Minimizer = Window:NewMinimizer({
 
 local MobileButton = Minimizer:CreateMobileMinimizer({
   Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(126, 92, 255)
+  BackgroundColor3 = Color3.fromRGB(180, 10, 20)
 })
 
 local Tabs = {
-    Info = Window:MakeTab({ Title = "Home", Icon = "lucide/house" }),
-    Main = Window:MakeTab({ Title = "Farm", Icon = "lucide/swords" }),
-    Fish = Window:MakeTab({ Title = "Fishing", Icon = "lucide/fish" }),
-    Quests = Window:MakeTab({ Title = "Quests / Items", Icon = "lucide/package" }),
-    Raids = Window:MakeTab({ Title = "Fruit / Raid", Icon = "lucide/gem" }),
-    SeaEvent = Window:MakeTab({ Title = "Sea", Icon = "lucide/waves" }),
-    Race = Window:MakeTab({ Title = "Race / Mirage", Icon = "lucide/sparkles" }),
-    Esp = Window:MakeTab({ Title = "Stats / ESP", Icon = "lucide/chart-no-axes-column" }),
-    Travel = Window:MakeTab({ Title = "Teleport", Icon = "lucide/map-pin" }),
-    Combat = Window:MakeTab({ Title = "Combat", Icon = "lucide/target" }),
-    Shop = Window:MakeTab({ Title = "Shop", Icon = "lucide/shopping-cart" }),
-    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "lucide/volcano" }),
-    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "lucide/palette" }),
-    Settings = Window:MakeTab({ Title = "Settings", Icon = "lucide/settings" }),
-    Misc = Window:MakeTab({ Title = "Misc", Icon = "lucide/menu" })
+    Info = Window:MakeTab({ Title = "Overview", Icon = "Info" }),
+    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "rbxassetid://7734053495" }),
+    Main = Window:MakeTab({ Title = "Farming", Icon = "rbxassetid://7733960981" }),
+    Settings = Window:MakeTab({ Title = "Settings", Icon = "rbxassetid://7734053495" }),
+    Fish = Window:MakeTab({ Title = "Fishing", Icon = "rbxassetid://127664059821666" }),
+    Quests = Window:MakeTab({ Title = "Quests", Icon = "rbxassetid://13075622619" }),
+    SeaEvent = Window:MakeTab({ Title = "Sea Events", Icon = "waves" }),
+    Race = Window:MakeTab({ Title = "Race & Mirage", Icon = "rbxassetid://11162889532" }),
+    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "tent" }),
+    Esp = Window:MakeTab({ Title = "ESP & Stats", Icon = "rbxassetid://7040410130" }),
+    Raids = Window:MakeTab({ Title = "Raids & Fruits", Icon = "rbxassetid://11155986081" }),
+    Combat = Window:MakeTab({ Title = "Combat", Icon = "rbxassetid://13075651575" }),
+    Travel = Window:MakeTab({ Title = "Travel", Icon = "locate" }),
+    Shop = Window:MakeTab({ Title = "Shop", Icon = "rbxassetid://6031265976" }),
+    Misc = Window:MakeTab({ Title = "Misc", Icon = "rbxassetid://10709783577" })
 }
 
--- =================== FLUX BYTE HOME / REDZ-STYLE HEADER ===================
-do
-    local home = Tabs.Info
-    home:AddSection("Flux Byte")
-    home:AddParagraph("Blox Fruits Hub", "A compact dark interface with category navigation, designed around the sidebar + section layout seen in modern Blox Fruits hubs.")
-    home:AddSection("Session")
-    local status = home:AddParagraph("Status", "Loading...")
-    local level = home:AddParagraph("Level", "Checking...")
-    local world = home:AddParagraph("World", "Checking...")
-    local tween = home:AddParagraph("Tween", "180 studs/s")
-    task.spawn(function()
-        while task.wait(1) do
-            pcall(function()
-                local lp = game:GetService("Players").LocalPlayer
-                local data = lp:FindFirstChild("Data")
-                local lvl = data and data:FindFirstChild("Level")
-                local worldValue = game.PlaceId == 2753915549 and "Sea 1" or (game.PlaceId == 4442272183 and "Sea 2" or (game.PlaceId == 7449423635 and "Sea 3" or "Unknown"))
-                level:SetDesc(lvl and tostring(lvl.Value) or "Unknown")
-                world:SetDesc(worldValue)
-                status:SetDesc("Online â¢ UI loaded")
-                tween:SetDesc("180 studs/s")
-            end)
-        end
-    end)
-end
-
 -- =================== GUI SETTINGS TAB ===================
--- NEVAHUB GUI Settings tab.
+-- VYROX GUI Settings tab.
 -- (Window:SetTheme / Window:Notify / positional AddParagraph)
 -- so every element behaves the same as in the standalone GUI file.
 
 local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
 
 secCustomTheme:AddButton({
-    Title = "Apply Flux Byte Dark", Icon = "solar/star-bold",
+    Title = "Apply Neonblue", Icon = "solar/star-bold",
     Callback = function()
-        Window:SetTheme("FluxByteRedz")
-        Window:Notify({Title="Theme", Content="Flux Byte Dark applied", Duration=2})
+        Window:SetTheme("NeonBlue")
+        Window:Notify({Title="Theme", Content="NeonBlue applied", Duration=2})
     end,
 })
 
@@ -2203,15 +2211,15 @@ end
 
 pcall(function() secCustomTheme:AddDivider() end)
 
--- NEVAHUB config manager sections (interface / save / floating button / media).
--- Everything is kept inside ONE parent folder ("NEVAHUB") so the executor's
+-- VYROX config manager sections (interface / save / floating button / media).
+-- Everything is kept inside ONE parent folder ("VYROX") so the executor's
 -- workspace stays clean instead of scattering separate folders around.
 --
 -- The config UI is BUILT here, but the actual autoload of saved settings is
 -- DEFERRED to the end of the script: settings are restored by iterating over
 -- every UI option, and the farm/feature toggles are created much further down,
--- so loading now would skip them. See NEVAHUB_DeferredAutoload() at the file end.
-NEVAHUB_DeferredAutoload = function() end -- replaced below if managers exist
+-- so loading now would skip them. See VYROX_DeferredAutoload() at the file end.
+VYROX_DeferredAutoload = function() end -- replaced below if managers exist
 pcall(function()
     local FluentTab = Tabs.GUI_Settings._t
     local env = (getgenv and getgenv()) or _G
@@ -2220,41 +2228,41 @@ pcall(function()
     local SaveManager = SaveManager or env.SaveManager
     local FloatingButtonManager = FloatingButtonManager or env.FloatingButtonManager
     if MediaManager then
-        MediaManager:SetFolder("FluxByte/Media")
+        MediaManager:SetFolder("VYROX/Media")
     end
     if InterfaceManager then
         InterfaceManager:SetLibrary(Fluent)
-        InterfaceManager:SetFolder("FluxByte")
+        InterfaceManager:SetFolder("VYROX")
         InterfaceManager:BuildInterfaceSection(FluentTab)
         -- theme/interface options exist immediately, so this can load now
         pcall(function() InterfaceManager:LoadSettings() end)
     end
     if SaveManager then
         SaveManager:SetLibrary(Fluent)
-        SaveManager:SetFolder("FluxByte")
+        SaveManager:SetFolder("VYROX")
         SaveManager:IgnoreThemeSettings()
         SaveManager:BuildConfigSection(FluentTab)
     end
     if FloatingButtonManager then
         FloatingButtonManager:SetLibrary(Fluent)
-        FloatingButtonManager:SetFolder("FluxByte/Floating")
+        FloatingButtonManager:SetFolder("VYROX/Floating")
         FloatingButtonManager:BuildConfigSection(FluentTab)
     end
 
     -- Clean up the stray default folders the UI library creates at load time
     -- (before our SetFolder calls) plus leftovers from older builds, so only
-    -- the single "NEVAHUB" folder remains. Only deletes them if they are empty
+    -- the single "VYROX" folder remains. Only deletes them if they are empty
     -- / safe, and only if the executor supports folder deletion.
     pcall(function()
         if not (isfolder and delfolder) then return end
-        local strays = { "FluentSettings", "FloatingButtons", "ImageCache", "FluentShowcase", "NEVAHUBv3" }
+        local strays = { "FluentSettings", "FloatingButtons", "ImageCache", "FluentShowcase", "VYROXv3" }
         for _, name in ipairs(strays) do
             if isfolder(name) then pcall(delfolder, name) end
         end
     end)
 
     -- Deferred loader: run once every UI element exists.
-    NEVAHUB_DeferredAutoload = function()
+    VYROX_DeferredAutoload = function()
         if SaveManager then pcall(function() SaveManager:LoadAutoloadConfig() end) end
         if FloatingButtonManager then pcall(function() FloatingButtonManager:LoadAutoloadConfig() end) end
     end
@@ -2266,8 +2274,8 @@ end)
 Tabs.Info:AddSection("Information")
 
 Tabs.Info:AddDiscordInvite({
-	Title = "NEVAHUB | Community",
-	Description = "A community for NEVAHUB Users - official scripts, updates, and support in one place. Created by NEVA.",
+	Title = "VYROX | Community",
+	Description = "A community for VYROX Users - official scripts, updates, and support in one place. Created by NEVA.",
 	Banner = "rbxassetid://75841821715476", 
 	Logo = "rbxassetid://75841821715476",
 	Invite = "https://discord.gg/GTMEDtwmva",
@@ -5194,10 +5202,10 @@ FishingToggle = Tabs.Fish:AddToggle({
     end
 })
 
---local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Workspace = game:GetService("Workspace")
---local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local FishReplicated = ReplicatedStorage:WaitForChild("FishReplicated")
 local FishingRequest = FishReplicated:WaitForChild("FishingRequest")
 local Config = require(FishReplicated.FishingClient.Config)
@@ -7560,7 +7568,7 @@ local HopToggle = Tabs.Race:AddToggle({
 
                                     -- Hiá»n thá» thÃ´ng bÃ¡o vá»i jobid
                                     Window:Notify({
-                                        Title = "NEVAHUB",
+                                        Title = "VYROX",
                                         Content = "ÄÃ£ vÃ o server: " .. selected,
                                         Image = "rbxassetid://75841821715476",
                                         Duration = 5
@@ -11204,7 +11212,7 @@ end)
 
 Tabs.Raids:AddSection("Raids Dungeons")
 
---local plr = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local plr = game.Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local function GetHRP()
     local char = plr.Character
@@ -11744,9 +11752,9 @@ end)
 
 Tabs.Combat:AddSection("LocalPlayer Settings")
 
---local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local UserInputService = game:GetService("UserInputService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = game:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local UserInputService = game:GetService("UserInputService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = game:GetService("RunService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local player = Players.LocalPlayer
 
@@ -12581,7 +12589,7 @@ local function fetchServersData(placeId, limit)
   end
 end})
 
---local replicated = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local replicated = game:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 Tabs.Misc:AddTextBox({
     Name = "Input Job Id",
@@ -12907,7 +12915,7 @@ spawn(function()
     end
   end
 end)
---local player = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local player = game.Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local function IsEntityAlive(entity)
     if not entity then return false end
     local humanoid = entity:FindFirstChild("Humanoid")
@@ -13022,12 +13030,12 @@ local HitRegistrationModule = {}
 local MainController = {}
 
 local GameService = game
---local Players = GameService:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = GameService:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local Workspace = GameService:GetService("Workspace") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = GameService:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = GameService:GetService("RunService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Workspace = GameService:GetService("Workspace") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
---local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 local function SafeWaitForChild(parent, childName)
@@ -13246,14 +13254,14 @@ StartMainLoops()
 -- Fluent.Options. This is what actually makes Auto Farm and other toggles come
 -- back ON after a rejoin (previously autoload ran before these were created).
 pcall(function()
-    if type(NEVAHUB_DeferredAutoload) == "function" then
-        NEVAHUB_DeferredAutoload()
+    if type(VYROX_DeferredAutoload) == "function" then
+        VYROX_DeferredAutoload()
     end
 end)
 
 -- ========================================
--- NEVAHUB AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
--- Auto-manages a config named "NEVAHUB Config":
+-- VYROX AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
+-- Auto-manages a config named "VYROX Config":
 --   * ensure it exists + is set as the autoload config,
 --   * re-save it automatically a couple seconds after ANY option changes,
 --   * and periodically as a safety net.
@@ -13264,8 +13272,8 @@ pcall(function()
     local SaveManager = SaveManager or env.SaveManager
     if not (SaveManager and writefile and isfile) then return end
 
-    local AUTO_NAME = "NEVAHUB Config"
-    local folder = SaveManager.Folder or "NEVAHUB"
+    local AUTO_NAME = "VYROX Config"
+    local folder = SaveManager.Folder or "VYROX"
     local autoPath = folder .. "/settings/autoload.txt"
 
     local function ensureAutoloadFlag()
@@ -13329,8 +13337,8 @@ pcall(function()
 end)
 
 Window:Notify({
-  Title = "NEVAHUB",
-  Content = "NEVAHUB is back - created by NEVA",
+  Title = "VYROX",
+  Content = "VYROX is back - crafted for VYROX",
   Image = "rbxassetid://75841821715476",
   Duration = 5
 })
