@@ -1748,12 +1748,13 @@ local ThemeColors = {
 
 local TabsInternal = {}
 local TabOrder = {}
+local ButtonTabs = {}
 local activeTab
 
 local function applyAccent(c)
     Accent = c or Accent
     for _, b in ipairs(TabOrder) do
-        if b._tab and b._tab == activeTab then
+        if ButtonTabs[b] and ButtonTabs[b] == activeTab then
             b.BackgroundColor3 = Accent
         end
     end
@@ -2129,7 +2130,7 @@ function WindowWrap:MakeTab(o)
     Instance.new("UICorner",button).CornerRadius=UDim.new(0,6)
 
     tabObj._tab=tabObj
-    button._tab=tabObj
+    ButtonTabs[button]=tabObj
     table.insert(TabOrder,button)
 
     button.MouseButton1Click:Connect(function()
@@ -2145,8 +2146,8 @@ end
 function WindowWrap:SelectTab(tab)
     activeTab=tab
     for _,b in ipairs(TabOrder) do
-        b.BackgroundColor3=(b._tab==tab) and Accent or Color3.fromRGB(42,42,42)
-        b.TextColor3=(b._tab==tab) and Color3.fromRGB(255,255,255) or Color3.fromRGB(170,170,170)
+        b.BackgroundColor3=(ButtonTabs[b]==tab) and Accent or Color3.fromRGB(42,42,42)
+        b.TextColor3=(ButtonTabs[b]==tab) and Color3.fromRGB(255,255,255) or Color3.fromRGB(170,170,170)
     end
     for _,t in pairs(TabsInternal) do
         t._container.Visible=(t==tab)
@@ -13271,115 +13272,3 @@ function HitRegistrationModule.Execute()
         end
     end
 end
-
-local function DisableCameraShake()
-    local cameraModule = require(ReplicatedStorage.Util.CameraShaker)
-    cameraModule:Stop()
-end
-
-local function StartMainLoops()
-    task.spawn(function()
-        while task.wait(FastAttackModule.Rate) do
-            FastAttackModule.ExecuteFastAttack()
-        end
-    end)
-
-    RunService.Heartbeat:Connect(function()
-        pcall(HitRegistrationModule.Execute)
-    end)
-end
-
-StartMainLoops()
-
--- Restore all saved settings now that EVERY toggle/slider/dropdown exists in
--- Fluent.Options. This is what actually makes Auto Farm and other toggles come
--- back ON after a rejoin (previously autoload ran before these were created).
-pcall(function()
-    if type(NEVAHUB_DeferredAutoload) == "function" then
-        NEVAHUB_DeferredAutoload()
-    end
-end)
-
--- ========================================
--- NEVAHUB AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
--- Auto-manages a config named "NEVAHUB Config":
---   * ensure it exists + is set as the autoload config,
---   * re-save it automatically a couple seconds after ANY option changes,
---   * and periodically as a safety net.
--- All guarded so missing SaveManager / file funcs never break the script.
--- ========================================
-pcall(function()
-    local env = (getgenv and getgenv()) or _G
-    local SaveManager = SaveManager or env.SaveManager
-    if not (SaveManager and writefile and isfile) then return end
-
-    local AUTO_NAME = "NEVAHUB Config"
-    local folder = SaveManager.Folder or "NEVAHUB"
-    local autoPath = folder .. "/settings/autoload.txt"
-
-    local function ensureAutoloadFlag()
-        pcall(function()
-            -- point Fluent's autoload at our managed config
-            if (not isfile(autoPath)) or readfile(autoPath) ~= AUTO_NAME then
-                writefile(autoPath, AUTO_NAME)
-            end
-        end)
-    end
-
-    local function doSave()
-        pcall(function() SaveManager:Save(AUTO_NAME) end)
-        ensureAutoloadFlag()
-    end
-
-    -- create the config file on first run so autoload has something to read
-    ensureAutoloadFlag()
-    doSave()
-
-    -- debounced save: fire ~2s after the last option change
-    local pending = false
-    local function scheduleSave()
-        if pending then return end
-        pending = true
-        task.delay(2, function()
-            pending = false
-            doSave()
-        end)
-    end
-
-    -- hook every stateful option's change signal if available.
-    -- Fluent stores the element's real logic in opt.Callback and a SEPARATE
-    -- opt.Changed slot (set via :OnChanged). We chain onto opt.Changed so we
-    -- never clobber the farm callback OR any pre-existing Changed handler.
-    pcall(function()
-        local opts = SaveManager.Options or (Fluent and Fluent.Options)
-        if type(opts) == "table" then
-            for idx, opt in pairs(opts) do
-                if type(opt) == "table" and not tostring(idx):find("SaveManager_") then
-                    local prev = opt.Changed
-                    if type(opt.OnChanged) == "function" then
-                        pcall(function()
-                            opt:OnChanged(function(val)
-                                if type(prev) == "function" then pcall(prev, val) end
-                                scheduleSave()
-                            end)
-                        end)
-                    end
-                end
-            end
-        end
-    end)
-
-    -- periodic safety-net save every 20s (covers options without a change signal)
-    task.spawn(function()
-        while task.wait(20) do
-            doSave()
-        end
-    end)
-end)
-
-Window:Notify({
-  Title = "NEVAHUB",
-  Content = "NEVAHUB is back - created by NEVA",
-  Image = "rbxassetid://75841821715476",
-  Duration = 5
-})
