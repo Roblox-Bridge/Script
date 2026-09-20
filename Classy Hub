@@ -65,13 +65,13 @@ do
 end
 
 -- ========================================
--- VYROX SETTINGS PERSISTENCE
+-- NEVAHUB SETTINGS PERSISTENCE
 -- Saves data to a JSON file so it survives rejoins.
 -- Safe no-ops if the executor lacks file functions.
 -- ========================================
 do
   local HttpService = game:GetService("HttpService")
-  local FolderName = "VYROX"
+  local FolderName = "NEVAHUB"
   local FileName = "Settings.json"
   local FullPath = FolderName .. "/" .. FileName
 
@@ -116,7 +116,7 @@ do
 end
 
 -- ========================================
--- VYROX PERFORMANCE / ANTI-SPAM HOOKS
+-- NEVAHUB PERFORMANCE / ANTI-SPAM HOOKS
 -- Silences error/warn spam, kills the Death effect + NPC guide updates,
 -- and hides decorative Rocks/Foam. All wrapped in pcall so a missing
 -- object or executor limitation never breaks the main script.
@@ -159,7 +159,7 @@ pcall(function()
 end)
 
 -- ========================================
--- VYROX FULL BRIGHT - brighter, readable lighting.
+-- NEVAHUB FULL BRIGHT - brighter, readable lighting.
 -- ========================================
 pcall(function()
   Lighting.Ambient = Color3.new(0.695, 0.695, 0.695)
@@ -170,7 +170,7 @@ pcall(function()
 end)
 
 -- ========================================
--- VYROX AUTO KEN (Observation Haki).
+-- NEVAHUB AUTO KEN (Observation Haki).
 -- Off by default; enable with _G.AutoKen = true.
 -- ========================================
 _G.AutoKen = _G.AutoKen or false
@@ -494,7 +494,7 @@ end
 -- loaded -- i.e. "the script cannot be executed" for some people while it
 -- runs fine for you. Now it degrades to no aim-hook instead of dying.
 if not (getrawmetatable and setreadonly and newcclosure and getnamecallmethod) then
-  warn("[VYROX] executor lacks metatable hook API; aim/mouse-position hook disabled")
+  warn("[NEVAHUB] executor lacks metatable hook API; aim/mouse-position hook disabled")
 else
 pcall(function()
 local gg = getrawmetatable(game)
@@ -1565,717 +1565,758 @@ QuestNeta = function()
 end
 
 -- =====================================================================
--- VYROX GUI
--- Exposes the API surface used by this script:
---   VyroxLib:MakeWindow -> creates the window
---   Window:MakeTab / :NewMinimizer / :CreateMobileMinimizer / :Notify
---   Tab:AddSection / AddToggle / AddButton / AddSlider / AddDropdown /
---       AddParagraph / AddTextBox / AddDiscordInvite
---   Toggle:Set(bool)        Paragraph:SetDesc(str)
+-- NEVAHUB GUI -> REDZ STYLE COMPATIBILITY UI
+-- Replaced the old Fluent/Neva visual layer with the supplied Redz-style
+-- 550x380 UI while keeping the original script's Tab/Add* API intact.
+-- The farming/teleport/etc. callbacks are still supplied by the original
+-- script; only the presentation layer is replaced here.
 -- =====================================================================
--- FIX: this was `loadstring(game:HttpGet(url))()` with zero error handling.
--- That single line is the other big "script cannot be executed" report:
---  * github.com/.../releases/download/... 302-redirects to
---    objects.githubusercontent.com, and several mobile executors' HttpGet
---    does not follow redirects -> returns "" or an HTML error page
---  * loadstring on that garbage returns nil + an error string, and calling
---    nil throws "attempt to call a nil value" at top level -> whole script dead
--- Now: try mirrors, and report WHICH step failed instead of dying silently.
-local Fluent
-do
-  local sources = {
-    "https://github.com/StyearX/Fluent-modded/releases/download/1.5.5/FluentPro",
-    "https://raw.githubusercontent.com/StyearX/Fluent-modded/main/FluentPro.lua",
-  }
-  local httpget = (syn and syn.request) and function(u)
-      local r = syn.request({ Url = u, Method = "GET" })
-      return r and r.Body
-    end or function(u) return game:HttpGet(u) end
-
-  local lastErr
-  for _, url in ipairs(sources) do
-    local ok, body = pcall(httpget, url)
-    if ok and type(body) == "string" and #body > 1000 and not body:find("^%s*<") then
-      local chunk, err = loadstring(body)
-      if chunk then
-        local ran, lib = pcall(chunk)
-        if ran and type(lib) == "table" then Fluent = lib break end
-        lastErr = "library errored while loading: " .. tostring(lib)
-      else
-        lastErr = "compile failed: " .. tostring(err)
-      end
-    else
-      lastErr = "download failed / not a script: " .. tostring(ok and body and #body)
-    end
-  end
-
-  if not Fluent then
-    local msg = "[VYROX] UI library could not load (" .. tostring(lastErr) ..
-      "). Your executor's HttpGet is likely blocked or does not follow redirects."
-    warn(msg)
-    pcall(function()
-      game:GetService("StarterGui"):SetCore("SendNotification",
-        { Title = "VYROX failed", Text = "UI library download blocked by your executor.", Duration = 15 })
-    end)
-    error(msg, 0)
-  end
-end
 
 local UserInputService = game:GetService("UserInputService")
---local LocalPlayer = game:GetService("Players").LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+local TweenService_UI = game:GetService("TweenService")
+local Players_UI = game:GetService("Players")
+local LocalPlayer_UI = Players_UI.LocalPlayer
 
--- unique-flag generator (Fluent wants a unique flag id per stateful element)
-local _flagN = 0
-local function nextFlag(prefix)
-    _flagN = _flagN + 1
-    return "VYROX_" .. (prefix or "F") .. "_" .. _flagN
+local RedzGui = Instance.new("ScreenGui")
+RedzGui.Name = "NEVAHUB_RedzUI"
+RedzGui.ResetOnSpawn = false
+RedzGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+RedzGui.DisplayOrder = 2147483647
+
+pcall(function()
+    RedzGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+end)
+if not RedzGui.Parent then
+    RedzGui.Parent = LocalPlayer_UI:WaitForChild("PlayerGui")
 end
 
--- normalize an icon string to something the GUI accepts.
--- Fluent accepts rbxassetid:// and prefix/name packs. Bare lucide names
--- ("Info","locate","waves","tent") are mapped to the lucide/ pack.
-local function fixIcon(icon)
-    if type(icon) ~= "string" or icon == "" then return icon end
-    if icon:find("://") or icon:find("/") then return icon end
-    return "lucide/" .. icon:lower()
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Parent = RedzGui
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.Size = UDim2.fromOffset(550, 380)
+Main.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+local mainStroke = Instance.new("UIStroke", Main)
+mainStroke.Color = Color3.fromRGB(45, 45, 45)
+mainStroke.Thickness = 1
+
+local function makeDraggable(topbar, object)
+    local dragging, dragInput, dragStart, startPos
+    topbar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = object.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    topbar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            object.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
 end
 
--- Source mixes (Name=) and (Title=) keys.
--- Accept either, and never pass nil (the GUI errors on a missing Title).
-local function titleOf(o)
-    local t = o.Name or o.Title or o.Text or ""
-    return tostring(t)
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Parent = Main
+Header.Size = UDim2.new(1, 0, 0, 40)
+Header.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+Header.BorderSizePixel = 0
+
+local HeaderFix = Instance.new("Frame")
+HeaderFix.Parent = Header
+HeaderFix.Size = UDim2.new(1, 0, 0, 8)
+HeaderFix.Position = UDim2.new(0, 0, 1, -8)
+HeaderFix.BackgroundColor3 = Header.BackgroundColor3
+HeaderFix.BorderSizePixel = 0
+
+local Title = Instance.new("TextLabel")
+Title.Parent = Header
+Title.Size = UDim2.new(0, 250, 1, 0)
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "NEVAHUB : Blox Fruits"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local SubTitle = Instance.new("TextLabel")
+SubTitle.Parent = Header
+SubTitle.Size = UDim2.new(0, 150, 1, 0)
+SubTitle.Position = UDim2.new(0, 190, 0, 0)
+SubTitle.BackgroundTransparency = 1
+SubTitle.Text = "[ Redz UI ]"
+SubTitle.TextColor3 = Color3.fromRGB(225, 35, 45)
+SubTitle.Font = Enum.Font.Gotham
+SubTitle.TextSize = 11
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Parent = Header
+CloseBtn.Size = UDim2.fromOffset(40, 40)
+CloseBtn.Position = UDim2.new(1, -40, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "â"
+CloseBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Parent = Header
+MinBtn.Size = UDim2.fromOffset(40, 40)
+MinBtn.Position = UDim2.new(1, -80, 0, 0)
+MinBtn.BackgroundTransparency = 1
+MinBtn.Text = "â"
+MinBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 14
+
+makeDraggable(Header, Main)
+
+local Body = Instance.new("Frame")
+Body.Parent = Main
+Body.Position = UDim2.new(0, 0, 0, 40)
+Body.Size = UDim2.new(1, 0, 1, -40)
+Body.BackgroundTransparency = 1
+
+local Sidebar = Instance.new("ScrollingFrame")
+Sidebar.Parent = Body
+Sidebar.Size = UDim2.fromOffset(160, 340)
+Sidebar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Sidebar.BorderSizePixel = 0
+Sidebar.ScrollBarThickness = 3
+Sidebar.ScrollBarImageColor3 = Color3.fromRGB(225, 35, 45)
+Sidebar.CanvasSize = UDim2.new(0, 0, 0, 0)
+Sidebar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local SidebarList = Instance.new("UIListLayout", Sidebar)
+SidebarList.Padding = UDim.new(0, 4)
+SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+local SidebarPad = Instance.new("UIPadding", Sidebar)
+SidebarPad.PaddingTop = UDim.new(0, 10)
+SidebarPad.PaddingLeft = UDim.new(0, 8)
+SidebarPad.PaddingRight = UDim.new(0, 8)
+SidebarPad.PaddingBottom = UDim.new(0, 10)
+
+local ContentHost = Instance.new("Frame")
+ContentHost.Parent = Body
+ContentHost.Position = UDim2.new(0, 160, 0, 0)
+ContentHost.Size = UDim2.new(1, -160, 1, 0)
+ContentHost.BackgroundColor3 = Color3.fromRGB(34, 34, 34)
+ContentHost.BorderSizePixel = 0
+
+local Accent = Color3.fromRGB(225, 35, 45)
+local CurrentTheme = "Blood Red"
+
+local ThemeColors = {
+    ["Blood Red"] = Color3.fromRGB(225,35,45),
+    ["Amoled"] = Color3.fromRGB(255,255,255),
+    ["Cyanic"] = Color3.fromRGB(0,190,220),
+    ["Amber Glow"] = Color3.fromRGB(235,160,35),
+    ["Deep Violet"] = Color3.fromRGB(135,80,230),
+    ["Neon Purple"] = Color3.fromRGB(180,70,255),
+    ["Royal Blue"] = Color3.fromRGB(65,105,225),
+    ["Deep Ocean"] = Color3.fromRGB(20,130,190),
+    ["Orange"] = Color3.fromRGB(235,110,30),
+    ["EmeraldDark"] = Color3.fromRGB(35,180,110),
+    ["NeonBlue"] = Color3.fromRGB(0,180,255),
+    ["Sunset"] = Color3.fromRGB(240,80,65),
+    ["SlateStatic"] = Color3.fromRGB(100,110,125),
+    ["SlateAnimated"] = Color3.fromRGB(100,110,125),
+}
+
+local TabsInternal = {}
+local TabOrder = {}
+local activeTab
+
+local function applyAccent(c)
+    Accent = c or Accent
+    for _, b in ipairs(TabOrder) do
+        if b._tab and b._tab == activeTab then
+            b.BackgroundColor3 = Accent
+        end
+    end
+    for _, t in pairs(TabsInternal) do
+        for _, control in ipairs(t._controls or {}) do
+            if control._accent then
+                pcall(function() control._accent.BackgroundColor3 = Accent end)
+            end
+        end
+    end
 end
 
--- ---- Tab wrapper -----------------------------------------------------
+local function clearChildrenExceptLayout(frame)
+    -- Content is rebuilt once per tab, so controls retain their own callbacks
+    -- and state while inactive tabs remain hidden.
+end
+
+local function makeRow(parent, height)
+    local row = Instance.new("Frame")
+    row.Parent = parent
+    row.Size = UDim2.new(1, -4, 0, height or 44)
+    row.BackgroundColor3 = Color3.fromRGB(42, 42, 46)
+    row.BorderSizePixel = 0
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+    return row
+end
+
+local function labelFor(parent, text, size, color)
+    local l = Instance.new("TextLabel")
+    l.Parent = parent
+    l.BackgroundTransparency = 1
+    l.Text = tostring(text or "")
+    l.TextColor3 = color or Color3.fromRGB(230,230,230)
+    l.Font = Enum.Font.GothamMedium
+    l.TextSize = size or 13
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    return l
+end
+
 local Tab = {}
 Tab.__index = Tab
 
-local function wrapTab(fluentTab)
-    return setmetatable({ _t = fluentTab }, Tab)
-end
-
--- container = a tab OR a section; both share the Add* methods.
-local function bindContainer(self)
-    return self._sec or self._t
-end
-
 function Tab:AddSection(name)
-    local sec = self._t:AddSection(tostring(name or ""))
-    return setmetatable({ _t = self._t, _sec = sec }, Tab)
+    local sec = {
+        _tab = self._tab,
+        _container = self._container,
+        _isSection = true,
+        _name = tostring(name or "")
+    }
+    setmetatable(sec, Tab)
+    local title = Instance.new("TextLabel")
+    title.Parent = self._container
+    title.Size = UDim2.new(1, 0, 0, 22)
+    title.BackgroundTransparency = 1
+    title.Text = tostring(name or "")
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    return sec
+end
+
+local function bind(self)
+    return self._container
 end
 
 function Tab:AddParagraph(title, desc)
-    -- positional (Title, Desc); returns obj with :SetDesc
-    local p = bindContainer(self):AddParagraph({
-        Title = tostring(title or ""),
-        Content = tostring(desc or ""),
-    })
-    local wrapped = {}
-    function wrapped:SetDesc(text)
-        if p.SetDesc then p:SetDesc(tostring(text))
-        elseif p.SetContent then p:SetContent(tostring(text))
-        elseif p.SetValue then p:SetValue(tostring(text)) end
-    end
-    function wrapped:SetTitle(text)
-        if p.SetTitle then p:SetTitle(tostring(text)) end
-    end
-    return wrapped
+    local row = makeRow(bind(self), 54)
+    local a = labelFor(row, title, 13)
+    a.Position = UDim2.fromOffset(10, 7)
+    a.Size = UDim2.new(1, -20, 0, 18)
+    local d = labelFor(row, desc, 11, Color3.fromRGB(145,145,145))
+    d.Position = UDim2.fromOffset(10, 27)
+    d.Size = UDim2.new(1, -20, 0, 18)
+    local obj = {}
+    function obj:SetDesc(v) d.Text = tostring(v or "") end
+    function obj:SetContent(v) d.Text = tostring(v or "") end
+    function obj:SetTitle(v) a.Text = tostring(v or "") end
+    return obj
 end
 
 function Tab:AddButton(o)
-    return bindContainer(self):AddButton({
-        Title = titleOf(o),
-        Description = o.Description,
-        Icon = fixIcon(o.Icon),
-        Callback = o.Callback or function() end,
-    })
+    o = o or {}
+    local row = makeRow(bind(self), 40)
+    local title = labelFor(row, o.Title or o.Name or o.Text, 13)
+    title.Position = UDim2.fromOffset(10, 0)
+    title.Size = UDim2.new(0.62, 0, 1, 0)
+    local btn = Instance.new("TextButton")
+    btn.Parent = row
+    btn.Size = UDim2.fromOffset(76, 26)
+    btn.Position = UDim2.new(1, -86, 0.5, -13)
+    btn.BackgroundColor3 = Accent
+    btn.Text = o.ButtonText or "Apply"
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+    btn.MouseButton1Click:Connect(function()
+        pcall(o.Callback or function() end)
+    end)
+    return { _accent = btn }
 end
 
 function Tab:AddToggle(o)
-    local flag = o.Flag or nextFlag("T")
-    local tgl = bindContainer(self):AddToggle(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Default = o.Default or false,
-        Callback = o.Callback or function() end,
-    })
-    -- compat: :Set(bool)
-    local wrapped = { _tgl = tgl, Flag = flag }
-    function wrapped:Set(v)
-        if tgl.SetValue then tgl:SetValue(v and true or false)
-        elseif tgl.Set then tgl:Set(v and true or false) end
+    o = o or {}
+    local row = makeRow(bind(self), 44)
+    local title = labelFor(row, o.Title or o.Name or o.Text, 13)
+    title.Position = UDim2.fromOffset(10, 5)
+    title.Size = UDim2.new(1, -75, 0, 18)
+    if o.Description then
+        local d = labelFor(row, o.Description, 11, Color3.fromRGB(130,130,130))
+        d.Position = UDim2.fromOffset(10, 23)
+        d.Size = UDim2.new(1, -75, 0, 14)
     end
-    function wrapped:Get()
-        return tgl.Value
+
+    local bg = Instance.new("Frame")
+    bg.Parent = row
+    bg.Size = UDim2.fromOffset(44, 24)
+    bg.Position = UDim2.new(1, -54, 0.5, -12)
+    bg.BackgroundColor3 = o.Default and Accent or Color3.fromRGB(58,58,62)
+    bg.BorderSizePixel = 0
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(1,0)
+
+    local knob = Instance.new("Frame")
+    knob.Parent = bg
+    knob.Size = UDim2.fromOffset(20,20)
+    knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    knob.BorderSizePixel = 0
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+
+    local state = o.Default and true or false
+    local callbackBusy = false
+    local function setState(v, fire)
+        state = v and true or false
+        bg.BackgroundColor3 = state and Accent or Color3.fromRGB(58,58,62)
+        knob.Position = state and UDim2.new(1,-22,0.5,-10) or UDim2.new(0,2,0.5,-10)
+        if fire and not callbackBusy then
+            callbackBusy = true
+            pcall(o.Callback or function() end, state)
+            callbackBusy = false
+        end
     end
+    setState(state, false)
+    local hit = Instance.new("TextButton")
+    hit.Parent = row
+    hit.Size = UDim2.new(1,0,1,0)
+    hit.BackgroundTransparency = 1
+    hit.Text = ""
+    hit.ZIndex = 3
+    hit.MouseButton1Click:Connect(function() setState(not state, true) end)
+
+    local wrapped = {Flag=o.Flag, _accent=bg}
+    function wrapped:Set(v) setState(v, true) end
+    function wrapped:Get() return state end
     return wrapped
 end
 
 function Tab:AddSlider(o)
-    local flag = o.Flag or nextFlag("S")
-    local rounding = o.Rounding
-    if rounding == nil then
-        -- treat integer increment as 0 decimals
-        rounding = (o.Increment and o.Increment >= 1) and 0 or 0
+    o = o or {}
+    local row = makeRow(bind(self), 54)
+    local title = labelFor(row, o.Title or o.Name or o.Text, 13)
+    title.Position = UDim2.fromOffset(10, 5)
+    title.Size = UDim2.new(1,-90,0,18)
+    local min = tonumber(o.Min) or 0
+    local max = tonumber(o.Max) or 100
+    local value = tonumber(o.Default) or min
+    local valueLabel = labelFor(row, tostring(value), 11, Color3.fromRGB(180,180,180))
+    valueLabel.Position = UDim2.new(1,-75,0,5)
+    valueLabel.Size = UDim2.fromOffset(65,18)
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+    local bar = Instance.new("Frame")
+    bar.Parent = row
+    bar.Position = UDim2.new(0,10,1,-17)
+    bar.Size = UDim2.new(1,-20,0,6)
+    bar.BackgroundColor3 = Color3.fromRGB(62,62,66)
+    bar.BorderSizePixel = 0
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1,0)
+    local fill = Instance.new("Frame")
+    fill.Parent = bar
+    fill.BackgroundColor3 = Accent
+    fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+
+    local function setValue(v, fire)
+        value = math.clamp(tonumber(v) or min, min, max)
+        fill.Size = UDim2.new((max == min and 1 or (value-min)/(max-min)),0,1,0)
+        valueLabel.Text = tostring(value)
+        if fire then pcall(o.Callback or function() end, value) end
     end
-    local sld = bindContainer(self):AddSlider(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Default = o.Default or o.Min or 0,
-        Min = o.Min or 0,
-        Max = o.Max or 100,
-        Rounding = rounding,
-        Callback = o.Callback or function() end,
-    })
-    local wrapped = { _sld = sld, Flag = flag }
-    function wrapped:Set(v)
-        if sld.SetValue then sld:SetValue(v) end
+    local dragging = false
+    local function fromInput(input)
+        local x = math.clamp(input.Position.X - bar.AbsolutePosition.X, 0, bar.AbsoluteSize.X)
+        local pct = x / math.max(bar.AbsoluteSize.X,1)
+        setValue(min + (max-min)*pct, true)
     end
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; fromInput(input)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            fromInput(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging=false end
+    end)
+    setValue(value, false)
+    local wrapped = {Flag=o.Flag, _accent=fill}
+    function wrapped:Set(v) setValue(v, true) end
     return wrapped
 end
 
 function Tab:AddDropdown(o)
-    local flag = o.Flag or nextFlag("D")
-    local dd = bindContainer(self):AddDropdown(flag, {
-        Title = titleOf(o),
-        Description = o.Description,
-        Values = o.Options or {},
-        Default = o.Default,
-        Multi = false,
-        Callback = o.Callback or function() end,
-    })
-    local wrapped = { _dd = dd, Flag = flag }
+    o = o or {}
+    local row = makeRow(bind(self), 42)
+    local title = labelFor(row, o.Title or o.Name or o.Text, 13)
+    title.Position = UDim2.fromOffset(10,0)
+    title.Size = UDim2.new(0.48,0,1,0)
+
+    local selected = o.Default
+    if type(selected) == "table" then selected = selected[1] end
+    local choices = o.Options or o.Values or {}
+    local selectBtn = Instance.new("TextButton")
+    selectBtn.Parent = row
+    selectBtn.Position = UDim2.new(0.48,0,0.5,-13)
+    selectBtn.Size = UDim2.new(0.52,-10,0,26)
+    selectBtn.BackgroundColor3 = Color3.fromRGB(52,52,56)
+    selectBtn.Text = tostring(selected or "Select")
+    selectBtn.TextColor3 = Color3.fromRGB(220,220,220)
+    selectBtn.Font = Enum.Font.Gotham
+    selectBtn.TextSize = 11
+    selectBtn.AutoButtonColor = false
+    Instance.new("UICorner", selectBtn).CornerRadius = UDim.new(0,6)
+
+    local popup
+    local function rebuild()
+        if popup then popup:Destroy() end
+        popup = Instance.new("Frame")
+        popup.Parent = ContentHost
+        popup.ZIndex = 50
+        popup.Size = UDim2.fromOffset(170, math.min(180, 28 * #choices + 8))
+        popup.Position = UDim2.new(1,-180,0,10)
+        popup.BackgroundColor3 = Color3.fromRGB(28,28,30)
+        popup.BorderSizePixel = 0
+        Instance.new("UICorner", popup).CornerRadius = UDim.new(0,6)
+        local list = Instance.new("UIListLayout", popup)
+        list.Padding = UDim.new(0,2)
+        local pad = Instance.new("UIPadding", popup)
+        pad.PaddingTop=UDim.new(0,4); pad.PaddingLeft=UDim.new(0,4); pad.PaddingRight=UDim.new(0,4); pad.PaddingBottom=UDim.new(0,4)
+        for _, choice in ipairs(choices) do
+            local b = Instance.new("TextButton")
+            b.Parent=popup
+            b.Size=UDim2.new(1,0,0,26)
+            b.BackgroundColor3=Color3.fromRGB(44,44,48)
+            b.Text=tostring(choice)
+            b.TextColor3=Color3.fromRGB(220,220,220)
+            b.Font=Enum.Font.Gotham
+            b.TextSize=11
+            b.AutoButtonColor=false
+            Instance.new("UICorner",b).CornerRadius=UDim.new(0,4)
+            b.MouseButton1Click:Connect(function()
+                selected=choice; selectBtn.Text=tostring(choice)
+                popup:Destroy(); popup=nil
+                pcall(o.Callback or function() end, choice)
+            end)
+        end
+    end
+    selectBtn.MouseButton1Click:Connect(function()
+        if popup then popup:Destroy(); popup=nil else rebuild() end
+    end)
+    local wrapped={Flag=o.Flag,_accent=selectBtn}
     function wrapped:Set(v)
-        if dd.SetValue then dd:SetValue(v) end
+        selected=v; selectBtn.Text=tostring(v)
+        pcall(o.Callback or function() end,v)
     end
-    function wrapped:Refresh(opts, keep)
-        if dd.SetValues then dd:SetValues(opts) end
+    function wrapped:Refresh(opts)
+        choices=opts or {}
     end
-    -- "SetOptions" alias sometimes used
-    wrapped.SetOptions = wrapped.Refresh
+    wrapped.SetOptions=wrapped.Refresh
     return wrapped
 end
 
 function Tab:AddTextBox(o)
-    local flag = o.Flag or nextFlag("I")
-    return bindContainer(self):AddInput(flag, {
-        Title = titleOf(o),
-        Placeholder = o.Placeholder,
-        Default = o.Default,
-        Finished = o.ClearOnFocus and false or false,
-        Callback = o.Callback or function() end,
-    })
+    o=o or {}
+    local row=makeRow(bind(self),42)
+    local title=labelFor(row,o.Title or o.Name or o.Text,13)
+    title.Position=UDim2.fromOffset(10,0); title.Size=UDim2.new(0.43,0,1,0)
+    local box=Instance.new("TextBox")
+    box.Parent=row
+    box.Position=UDim2.new(0.43,0,0.5,-13)
+    box.Size=UDim2.new(0.57,-10,0,26)
+    box.BackgroundColor3=Color3.fromRGB(52,52,56)
+    box.TextColor3=Color3.fromRGB(230,230,230)
+    box.PlaceholderColor3=Color3.fromRGB(125,125,125)
+    box.PlaceholderText=tostring(o.Placeholder or "")
+    box.Text=tostring(o.Default or "")
+    box.Font=Enum.Font.Gotham
+    box.TextSize=11
+    Instance.new("UICorner",box).CornerRadius=UDim.new(0,6)
+    box.FocusLost:Connect(function()
+        pcall(o.Callback or function() end, box.Text)
+    end)
+    return box
 end
 
 function Tab:AddDiscordInvite(o)
-    local code = o.Invite or ""
-    code = code:gsub("https://discord%.gg/", ""):gsub("https://discord%.com/invite/", "")
-    local ok = pcall(function()
-        bindContainer(self):AddDiscord({ InviteCode = code })
+    o=o or {}
+    return self:AddButton({
+        Title=o.Title or "Discord",
+        ButtonText="Open",
+        Callback=function()
+            if setclipboard and o.Invite then pcall(setclipboard,o.Invite) end
+            pcall(function()
+                game:GetService("StarterGui"):SetCore("SendNotification",{
+                    Title=o.Title or "Discord",
+                    Text="Invite copied to clipboard.",
+                    Duration=3
+                })
+            end)
+        end
+    })
+end
+
+function Tab:AddDivider()
+    local d=Instance.new("Frame")
+    d.Parent=bind(self)
+    d.Size=UDim2.new(1,0,0,1)
+    d.BackgroundColor3=Color3.fromRGB(60,60,64)
+    d.BorderSizePixel=0
+    return d
+end
+function Tab:AddInput(o) return self:AddTextBox(o) end
+function Tab:AddLabel(t) return self:AddParagraph(t,"") end
+
+local WindowWrap={}
+WindowWrap.__index=WindowWrap
+
+function WindowWrap:MakeTab(o)
+    o=o or {}
+    local tabFrame=Instance.new("ScrollingFrame")
+    tabFrame.Parent=ContentHost
+    tabFrame.Size=UDim2.new(1,0,1,0)
+    tabFrame.BackgroundTransparency=1
+    tabFrame.BorderSizePixel=0
+    tabFrame.ScrollBarThickness=4
+    tabFrame.ScrollBarImageColor3=Accent
+    tabFrame.CanvasSize=UDim2.new(0,0,0,0)
+    tabFrame.AutomaticCanvasSize=Enum.AutomaticSize.Y
+    tabFrame.Visible=false
+
+    local list=Instance.new("UIListLayout",tabFrame)
+    list.Padding=UDim.new(0,10)
+    list.SortOrder=Enum.SortOrder.LayoutOrder
+    local pad=Instance.new("UIPadding",tabFrame)
+    pad.PaddingTop=UDim.new(0,12); pad.PaddingLeft=UDim.new(0,12); pad.PaddingRight=UDim.new(0,12); pad.PaddingBottom=UDim.new(0,20)
+
+    local tabObj=setmetatable({_container=tabFrame,_tab=nil,_controls={}},Tab)
+    local button=Instance.new("TextButton")
+    button.Parent=Sidebar
+    button.Size=UDim2.new(1,0,0,36)
+    button.BackgroundColor3=Color3.fromRGB(42,42,42)
+    button.Text="  "..tostring(o.Title or "Tab")
+    button.TextColor3=Color3.fromRGB(170,170,170)
+    button.Font=Enum.Font.GothamMedium
+    button.TextSize=12
+    button.TextXAlignment=Enum.TextXAlignment.Left
+    button.AutoButtonColor=false
+    button.Name="Tab_"..tostring(o.Title or "Tab")
+    Instance.new("UICorner",button).CornerRadius=UDim.new(0,6)
+
+    tabObj._tab=tabObj
+    button._tab=tabObj
+    table.insert(TabOrder,button)
+
+    button.MouseButton1Click:Connect(function()
+        self:SelectTab(tabObj)
     end)
-    if not ok then
-        bindContainer(self):AddParagraph({
-            Title = o.Title or "Discord",
-            Content = (o.Description or "") .. "\nInvite: " .. (o.Invite or ""),
-        })
+    TabsInternal[o.Title or ("Tab"..#TabOrder)]=tabObj
+    if not activeTab then
+        self:SelectTab(tabObj)
+    end
+    return tabObj
+end
+
+function WindowWrap:SelectTab(tab)
+    activeTab=tab
+    for _,b in ipairs(TabOrder) do
+        b.BackgroundColor3=(b._tab==tab) and Accent or Color3.fromRGB(42,42,42)
+        b.TextColor3=(b._tab==tab) and Color3.fromRGB(255,255,255) or Color3.fromRGB(170,170,170)
+    end
+    for _,t in pairs(TabsInternal) do
+        t._container.Visible=(t==tab)
     end
 end
 
--- passthrough extras that may appear
-function Tab:AddDivider()  return bindContainer(self):AddDivider() end
-function Tab:AddInput(o)    return self:AddTextBox(o) end
-function Tab:AddLabel(t)    return self:AddParagraph(t, "") end
+function WindowWrap:Show() Main.Visible=true end
+function WindowWrap:Hide() Main.Visible=false end
 
--- ---- Window wrapper --------------------------------------------------
-local WindowWrap = {}
-WindowWrap.__index = WindowWrap
-
-function WindowWrap:MakeTab(o)
-    return wrapTab(self._w:AddTab({
-        Title = o.Title,
-        Icon = fixIcon(o.Icon),
-    }))
+function WindowWrap:SetTheme(name)
+    CurrentTheme=tostring(name or "Blood Red")
+    applyAccent(ThemeColors[CurrentTheme] or Color3.fromRGB(225,35,45))
 end
 
 function WindowWrap:Notify(o)
-    Fluent:Notify({
-        Title = o.Title,
-        Content = o.Content,
-        SubContent = o.SubContent,
-        Type = o.Type or "Info",
-        Icon = fixIcon(o.Icon or o.Image),
-        Duration = o.Duration or 3,
-    })
+    o=o or {}
+    local note=Instance.new("Frame")
+    note.Parent=RedzGui
+    note.AnchorPoint=Vector2.new(1,0)
+    note.Position=UDim2.new(1,-18,0,18)
+    note.Size=UDim2.fromOffset(270,72)
+    note.BackgroundColor3=Color3.fromRGB(28,28,30)
+    note.BorderSizePixel=0
+    note.ZIndex=100
+    Instance.new("UICorner",note).CornerRadius=UDim.new(0,8)
+    local st=Instance.new("UIStroke",note); st.Color=Accent; st.Thickness=1
+    local t=labelFor(note,o.Title or "NEVAHUB",13,Color3.fromRGB(255,255,255))
+    t.Position=UDim2.fromOffset(12,8); t.Size=UDim2.new(1,-24,0,18); t.ZIndex=101
+    local c=labelFor(note,o.Content or "",11,Color3.fromRGB(175,175,175))
+    c.Position=UDim2.fromOffset(12,29); c.Size=UDim2.new(1,-24,0,34); c.TextWrapped=true; c.ZIndex=101
+    task.delay(o.Duration or 3,function()
+        if note and note.Parent then
+            pcall(function() note:Destroy() end)
+        end
+    end)
 end
 
-
-function WindowWrap:SelectTab(i) if self._w.SelectTab then self._w:SelectTab(i) end end
-function WindowWrap:Show() if self._w.Show then self._w:Show() end end
-function WindowWrap:Hide() if self._w.Hide then self._w:Hide() end end
-
--- VYROX floating open/close GUI button.
--- Rotating background image + static icon, draggable, hold 1s to lock,
--- click plays a sound and toggles the window.
-function WindowWrap:BuildFloatingButton()
-    if self._floatBuilt then return end
-    self._floatBuilt = true
-
-    local toggleGui = Instance.new("ScreenGui")
-    toggleGui.Name = "OpenUi"
-    toggleGui.ResetOnSpawn = false
-    toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    toggleGui.IgnoreGuiInset = false
-    toggleGui.DisplayOrder = 2147483647
-    -- parent safely (some executors need CoreGui / gethui)
-    local parented = false
-    pcall(function()
-        toggleGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-        parented = true
-    end)
-    if not parented then
-        toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-
-    local mainBtn = Instance.new("TextButton")
-    mainBtn.Name = "OpenButton"
-    mainBtn.Parent = toggleGui
-    mainBtn.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
-    mainBtn.BackgroundTransparency = 1
-    mainBtn.Position = UDim2.new(0.101969875, 0, 0.110441767, 0)
-    mainBtn.Size = UDim2.new(0, 74, 0, 48)
-    mainBtn.Text = ""
-    mainBtn.AutoButtonColor = false
-    mainBtn.Visible = true
-    Instance.new("UICorner", mainBtn)
-
-    local sizeBackMulti = 0.3
-
-    local backgroundImage = Instance.new("ImageLabel")
-    backgroundImage.Name = "RotatingBackground"
-    backgroundImage.Parent = mainBtn
-    backgroundImage.Size = UDim2.new(2.3 + sizeBackMulti, 0, 2.3 + sizeBackMulti, 0)
-    backgroundImage.Position = UDim2.new(0.5, 0, 0.5, 0)
-    backgroundImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    backgroundImage.BackgroundTransparency = 1
-    backgroundImage.Image = "rbxassetid://6031097224"
-    backgroundImage.SizeConstraint = Enum.SizeConstraint.RelativeXX
-
-    local frontImage = Instance.new("ImageLabel")
-    frontImage.Name = "StaticIcon"
-    frontImage.Parent = mainBtn
-    frontImage.Size = UDim2.fromOffset(55, 55)
-    frontImage.Position = UDim2.new(0.5, 0, 0.5, 0)
-    frontImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    frontImage.BackgroundTransparency = 1
-    frontImage.Image = ""
-    frontImage.ZIndex = 1
-    Instance.new("UICorner", frontImage).CornerRadius = UDim.new(0.2, 0)
-
-    local logo = Instance.new("TextLabel")
-    logo.Name = "VYROXLogo"
-    logo.Parent = mainBtn
-    logo.Size = UDim2.fromScale(1, 1)
-    logo.BackgroundTransparency = 1
-    logo.Text = "V"
-    logo.Font = Enum.Font.GothamBlack
-    logo.TextSize = 24
-    logo.TextColor3 = Color3.fromRGB(238, 242, 255)
-    logo.ZIndex = 2
-
-    local logoStroke = Instance.new("UIStroke")
-    logoStroke.Thickness = 1.2
-    logoStroke.Transparency = 0.35
-    logoStroke.Color = Color3.fromRGB(103, 92, 255)
-    logoStroke.Parent = logo
-
-    local rotation = 0
-    local rotSpeed = 90
-    local lastTime = tick()
-    task.spawn(function()
-        while toggleGui.Parent do
-            local now = tick()
-            local delta = now - lastTime
-            lastTime = now
-            rotation = (rotation + rotSpeed * delta) % 360
-            backgroundImage.Rotation = rotation
-            task.wait()
-        end
-    end)
-
-    -- draggable + hold-to-lock
-    local function MakeDraggableOpenUi(topbar, obj)
-        local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
-        local holdingDrag, holdToken = false, 0
-        obj:SetAttribute("Locked", false)
-        local function Update(input)
-            if obj:GetAttribute("Locked") then return end
-            local delta = input.Position - dragStart
-            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-        local function ToggleLock()
-            local newState = not obj:GetAttribute("Locked")
-            obj:SetAttribute("Locked", newState)
-            Fluent:Notify({ Title = newState and "Locked" or "Unlocked", Content = newState and "Locked in place" or "Can be moved", Duration = 2 })
-        end
-        topbar.InputBegan:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            dragging = not obj:GetAttribute("Locked")
-            holdingDrag = true
-            dragStart = input.Position
-            startPos = obj.Position
-            holdToken = holdToken + 1
-            local token = holdToken
-            task.delay(1.0, function()
-                if holdingDrag and token == holdToken then ToggleLock() end
-            end)
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    holdingDrag = false
-                end
-            end)
-        end)
-        topbar.InputChanged:Connect(function(input)
-            if not dragStart then return end
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                if (input.Position - dragStart).Magnitude > 6 then holdingDrag = false end
-                dragInput = input
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if input == dragInput and dragging then Update(input) end
-        end)
-    end
-    MakeDraggableOpenUi(mainBtn, mainBtn)
-
-    local uiOpen = true
-    local function PlaySound(soundId)
-        pcall(function()
-            local sound = Instance.new("Sound")
-            sound.SoundId = "rbxassetid://" .. soundId
-            sound.Parent = game:GetService("SoundService")
-            sound:Play()
-            sound.Ended:Connect(function() sound:Destroy() end)
-        end)
-    end
-
-    mainBtn.MouseButton1Click:Connect(function()
-        local sounds = { "7127123605", "438666542" }
-        PlaySound(sounds[math.random(#sounds)])
-        uiOpen = not uiOpen
-        if uiOpen then self:Show() else self:Hide() end
-
-        local function SmoothSpeed(target, dur)
-            local start = rotSpeed
-            local steps = 30
-            for i = 1, steps do
-                rotSpeed = start + (target - start) * (i / steps)
-                task.wait(dur / steps)
-            end
-            rotSpeed = target
-        end
-        task.spawn(function()
-            SmoothSpeed(360, 0.4); task.wait(0.5)
-            SmoothSpeed(180, 0.4); task.wait(0.3)
-            SmoothSpeed(90, 0.4)
-        end)
-    end)
-
-    self._floatingGui = toggleGui
-    return mainBtn
-end
-
--- Minimizer: the GUI already minimizes with MinimizeKey. Provide stub objects
--- so the minimizer calls stay valid; the real open/close button is
--- the custom VYROX floating button built inside MakeWindow.
 function WindowWrap:NewMinimizer(_)
-    local self_ref = self
-    local m = {}
-    function m:CreateMobileMinimizer(_)
-        self_ref:BuildFloatingButton()
-        return {}
-    end
-    return m
+    local selfRef=self
+    return {
+        CreateMobileMinimizer=function(_,opts)
+            return selfRef:BuildFloatingButton(opts)
+        end
+    }
 end
 
--- ---- VYROX GUI entry point --------------------------------------------
-local VyroxLib = {}
-function VyroxLib:MakeWindow(o)
-    -- VYROX custom themes
-    pcall(function()
-        Fluent:RegisterCustomTheme("NeonBlue", {
-            Accent = Color3.fromRGB(0, 180, 255), AcrylicMain = Color3.fromRGB(10, 14, 28),
-            Text = Color3.fromRGB(230, 245, 255), SubText = Color3.fromRGB(120, 170, 220),
-            ToggleToggled = Color3.fromRGB(0, 180, 255),
-        })
+function WindowWrap:BuildFloatingButton(opts)
+    if self._floating then return self._floating end
+    local gui=Instance.new("ScreenGui")
+    gui.Name="NEVAHUB_RedzFloating"
+    gui.ResetOnSpawn=false
+    gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+    pcall(function() gui.Parent=(gethui and gethui()) or game:GetService("CoreGui") end)
+    if not gui.Parent then gui.Parent=LocalPlayer_UI:WaitForChild("PlayerGui") end
+    local b=Instance.new("TextButton")
+    b.Parent=gui
+    b.Size=UDim2.fromOffset(48,48)
+    b.Position=UDim2.new(0,20,0.2,0)
+    b.BackgroundColor3=Accent
+    b.Text="N"
+    b.TextColor3=Color3.new(1,1,1)
+    b.Font=Enum.Font.GothamBold
+    b.TextSize=20
+    b.AutoButtonColor=false
+    Instance.new("UICorner",b).CornerRadius=UDim.new(1,0)
+    makeDraggable(b,b)
+    b.MouseButton1Click:Connect(function()
+        Main.Visible=not Main.Visible
     end)
-
-    -- VYROX redesign: compact dark dashboard, wider content canvas,
-    -- cool cyan/violet accent, and a cleaner navigation-first layout.
-    pcall(function()
-        Fluent:RegisterCustomTheme("VYROX", {
-            Background = Color3.fromRGB(7, 9, 14),
-            AcrylicMain = Color3.fromRGB(10, 13, 21),
-            AcrylicBorder = Color3.fromRGB(35, 42, 60),
-            Tab = Color3.fromRGB(12, 16, 25),
-            Section = Color3.fromRGB(11, 14, 22),
-            Element = Color3.fromRGB(15, 19, 29),
-            ElementHover = Color3.fromRGB(21, 27, 40),
-            Text = Color3.fromRGB(238, 242, 255),
-            SubText = Color3.fromRGB(145, 154, 178),
-            Accent = Color3.fromRGB(103, 92, 255),
-            Toggle = Color3.fromRGB(103, 92, 255),
-            ToggleToggled = Color3.fromRGB(63, 220, 190),
-            Slider = Color3.fromRGB(103, 92, 255),
-        })
-    end)
-
-    local w = Fluent:CreateWindow({
-        Title = "VYROX",
-        SubTitle = "BLOX FRUITS â¢ CONTROL CENTER",
-        Version = "2.0",
-        TabWidth = 178,
-        Size = UDim2.fromOffset(820, 520),
-        Acrylic = true,
-        Theme = "VYROX",
-        MinimizeKey = Enum.KeyCode.LeftControl,
-        Search = true,
-        Icons = "lucide/",
-        UserInfoTop = false,
-        UserInfoTitle = "Operator",
-        UserInfoSubtitle = LocalPlayer.DisplayName,
-        UserInfoColor = Color3.fromRGB(103, 92, 255),
-    })
-
-    pcall(function()
-        Fluent:SetErrorHandler(function(msg)
-            pcall(function()
-                Fluent:Notify({ Title = "Error", Content = tostring(msg), Type = "Error", Duration = 5 })
-            end)
-        end)
-    end)
-
-    local wrapped = setmetatable({ _w = w }, WindowWrap)
-    -- always create the floating open/close button
-    pcall(function() wrapped:BuildFloatingButton() end)
-
-    -- Fix the player-avatar in the UserInfo card. The GUI fetches it with
-    -- Players:GetUserThumbnailAsync which frequently returns "" on first load,
-    -- leaving the avatar blank. Force a reliable rbxthumb:// image (client
-    -- resolves it directly from the UserId) into the UserInfo ImageLabel(s).
-    task.spawn(function()
-        local uid = LocalPlayer.UserId
-        local thumb = "rbxthumb://type=AvatarHeadShot&id=" .. uid .. "&w=150&h=150"
-        local function collectRoots()
-            local roots = {}
-            pcall(function() if gethui then table.insert(roots, gethui()) end end)
-            pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
-            pcall(function() table.insert(roots, LocalPlayer:FindFirstChild("PlayerGui")) end)
-            return roots
-        end
-        for attempt = 1, 20 do
-            local applied = false
-            pcall(function()
-                for _, root in ipairs(collectRoots()) do
-                    if root then
-                        for _, frame in ipairs(root:GetDescendants()) do
-                            if frame:IsA("Frame") and (frame.Name == "UserInfoTop" or frame.Name == "UserInfo") then
-                                for _, img in ipairs(frame:GetDescendants()) do
-                                    -- the avatar is the ImageLabel that has no ThemeTag icon color
-                                    -- (icons are tinted "SubText"); set any blank/thumb image.
-                                    if img:IsA("ImageLabel") then
-                                        local cur = img.Image or ""
-                                        if cur == "" or cur == "rbxassetid://0" or cur:find("rbxthumb") or cur:find("Thumbnail") then
-                                            img.Image = thumb
-                                            applied = true
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-            if applied then break end
-            task.wait(0.5)
-        end
-    end)
-
-    return wrapped
+    self._floating=b
+    return b
 end
 
--- ================= VYROX window bootstrap =================
-local Window = VyroxLib:MakeWindow({
-    Title = "VYROX",
-    SubTitle = "IS BACK",
-    SaveFolder = "vyrox.json"
+local NevaLib={}
+function NevaLib:MakeWindow(o)
+    local w=setmetatable({},WindowWrap)
+    return w
+end
+
+-- The original script expects these globals later for optional config hooks.
+-- The custom Redz UI has its own persistence at the top of this file, so
+-- Fluent's external SaveManager/InterfaceManager are intentionally unused.
+Fluent=nil
+MediaManager=nil
+InterfaceManager=nil
+SaveManager=nil
+FloatingButtonManager=nil
+NEVAHUB_DeferredAutoload=function() end
+
+local Window=NevaLib:MakeWindow({
+    Title="NEVAHUB",
+    SubTitle="IS BACK",
+    SaveFolder="nevahub.json"
 })
 
-local Minimizer = Window:NewMinimizer({
-  KeyCode = Enum.KeyCode.LeftControl
+local Minimizer=Window:NewMinimizer({KeyCode=Enum.KeyCode.LeftControl})
+local MobileButton=Minimizer:CreateMobileMinimizer({
+    Image="rbxassetid://75841821715476",
+    BackgroundColor3=Accent
 })
 
-local MobileButton = Minimizer:CreateMobileMinimizer({
-  Image = "rbxassetid://75841821715476",
-  BackgroundColor3 = Color3.fromRGB(180, 10, 20)
-})
-
-local Tabs = {
-    Info = Window:MakeTab({ Title = "Overview", Icon = "Info" }),
-    GUI_Settings = Window:MakeTab({ Title = "Interface", Icon = "rbxassetid://7734053495" }),
-    Main = Window:MakeTab({ Title = "Farming", Icon = "rbxassetid://7733960981" }),
-    Settings = Window:MakeTab({ Title = "Settings", Icon = "rbxassetid://7734053495" }),
-    Fish = Window:MakeTab({ Title = "Fishing", Icon = "rbxassetid://127664059821666" }),
-    Quests = Window:MakeTab({ Title = "Quests", Icon = "rbxassetid://13075622619" }),
-    SeaEvent = Window:MakeTab({ Title = "Sea Events", Icon = "waves" }),
-    Race = Window:MakeTab({ Title = "Race & Mirage", Icon = "rbxassetid://11162889532" }),
-    Prehistoric = Window:MakeTab({ Title = "Prehistoric", Icon = "tent" }),
-    Esp = Window:MakeTab({ Title = "ESP & Stats", Icon = "rbxassetid://7040410130" }),
-    Raids = Window:MakeTab({ Title = "Raids & Fruits", Icon = "rbxassetid://11155986081" }),
-    Combat = Window:MakeTab({ Title = "Combat", Icon = "rbxassetid://13075651575" }),
-    Travel = Window:MakeTab({ Title = "Travel", Icon = "locate" }),
-    Shop = Window:MakeTab({ Title = "Shop", Icon = "rbxassetid://6031265976" }),
-    Misc = Window:MakeTab({ Title = "Misc", Icon = "rbxassetid://10709783577" })
+local Tabs={
+    Info=Window:MakeTab({Title="Info",Icon="Info"}),
+    GUI_Settings=Window:MakeTab({Title="GUI Settings",Icon="â"}),
+    Main=Window:MakeTab({Title="Farming",Icon="â"}),
+    Settings=Window:MakeTab({Title="Setting",Icon="â"}),
+    Fish=Window:MakeTab({Title="Fishing",Icon="â"}),
+    Quests=Window:MakeTab({Title="Quest & Item",Icon="â"}),
+    SeaEvent=Window:MakeTab({Title="Sea Event",Icon="â"}),
+    Race=Window:MakeTab({Title="Mirage & Race",Icon="â"}),
+    Prehistoric=Window:MakeTab({Title="Volcano Event",Icon="â¦"}),
+    Esp=Window:MakeTab({Title="Stats & ESP",Icon="â"}),
+    Raids=Window:MakeTab({Title="Fruit & Raid",Icon="â"}),
+    Combat=Window:MakeTab({Title="Local Player",Icon="â"}),
+    Travel=Window:MakeTab({Title="Teleport",Icon="â"}),
+    Shop=Window:MakeTab({Title="Shopping",Icon="â"}),
+    Misc=Window:MakeTab({Title="Miscellaneous",Icon="â¦"})
 }
 
--- =================== GUI SETTINGS TAB ===================
--- VYROX GUI Settings tab.
--- (Window:SetTheme / Window:Notify / positional AddParagraph)
--- so every element behaves the same as in the standalone GUI file.
+-- GUI SETTINGS TAB: keep the existing theme choices, translated to the
+-- supplied Redz-style visual system.
+local secCustomTheme=Tabs.GUI_Settings:AddSection("Custom Themes")
+for _,item in ipairs({
+    {"Neonblue","NeonBlue"},{"Emeralddark","EmeraldDark"},{"Sunset","Sunset"},
+    {"SlateStatic","SlateStatic"},{"SlateAnimated","SlateAnimated"}
+}) do
+    local label,name=item[1],item[2]
+    secCustomTheme:AddButton({
+        Title="Apply "..label,
+        ButtonText="Apply",
+        Callback=function()
+            Window:SetTheme(name)
+            Window:Notify({Title="Theme",Content=name.." applied",Duration=2})
+        end
+    })
+end
 
-local secCustomTheme = Tabs.GUI_Settings:AddSection("Custom Themes")
-
-secCustomTheme:AddButton({
-    Title = "Apply Neonblue", Icon = "solar/star-bold",
-    Callback = function()
-        Window:SetTheme("NeonBlue")
-        Window:Notify({Title="Theme", Content="NeonBlue applied", Duration=2})
-    end,
-})
-
-secCustomTheme:AddButton({
-    Title = "Apply Emeralddark", Icon = "solar/leaf-bold",
-    Callback = function()
-        Window:SetTheme("EmeraldDark")
-        Window:Notify({Title="Theme", Content="EmeraldDark applied", Duration=2})
-    end,
-})
-
-secCustomTheme:AddButton({
-    Title = "Apply Sunset", Icon = "solar/sun-bold",
-    Callback = function()
-        Window:SetTheme("Sunset")
-        Window:Notify({Title="Theme", Content="Sunset applied", Duration=2})
-    end,
-})
-
-secCustomTheme:AddParagraph(
-    "Animated vs Static Comparison",
-    "SlateStatic and SlateAnimated share the exact same color palette. SlateStatic never animates regardless of the Animated Window toggle, because it has no ShineEnabled key at all. SlateAnimated sets ShineEnabled = true and follows the Animated Window toggle normally. Try opening a DropdownOutsideWindow on each to see the difference."
-)
-
-secCustomTheme:AddButton({
-    Title = "Apply SlateStatic (no animation support)", Icon = "solar/pause-circle-bold",
-    Callback = function()
-        Window:SetTheme("SlateStatic")
-        Window:Notify({Title="Theme", Content="SlateStatic applied â this theme never animates", Duration=3})
-    end,
-})
-
-secCustomTheme:AddButton({
-    Title = "Apply SlateAnimated (animation supported)", Icon = "solar/play-circle-bold",
-    Callback = function()
-        Window:SetTheme("SlateAnimated")
-        Window:Notify({Title="Theme", Content="SlateAnimated applied â try toggling Animated Window", Duration=3})
-    end,
-})
-
-local secTheme = Tabs.GUI_Settings:AddSection("Builtin Themes")
-
-for _, name in ipairs({
+local secTheme=Tabs.GUI_Settings:AddSection("Builtin Themes")
+for _,name in ipairs({
     "Amoled","Ash Gray","Blood Red","Cyanic","Amber Glow","Deep Violet",
     "Neon Cyber","Neon Purple","Royal Blue","Deep Ocean","Rgb","Orange",
     "Charcoal","Pearl White","Midnight","Galaxy Purple","Cosmic Violet",
-    "Cotton Candy","Arctic Frost",
+    "Cotton Candy","Arctic Frost"
 }) do
-    local n = name
     secTheme:AddButton({
-        Title = n, Icon = "solar/palette-bold",
-        Callback = function()
-            Window:SetTheme(n)
-            Window:Notify({Title="Theme", Content=n .. " applied", Duration=2})
-        end,
+        Title=name, ButtonText="Apply",
+        Callback=function()
+            Window:SetTheme(name)
+            Window:Notify({Title="Theme",Content=name.." applied",Duration=2})
+        end
     })
 end
 
-pcall(function() secCustomTheme:AddDivider() end)
+Window:SetTheme("Blood Red")
 
--- VYROX config manager sections (interface / save / floating button / media).
--- Everything is kept inside ONE parent folder ("VYROX") so the executor's
--- workspace stays clean instead of scattering separate folders around.
---
--- The config UI is BUILT here, but the actual autoload of saved settings is
--- DEFERRED to the end of the script: settings are restored by iterating over
--- every UI option, and the farm/feature toggles are created much further down,
--- so loading now would skip them. See VYROX_DeferredAutoload() at the file end.
-VYROX_DeferredAutoload = function() end -- replaced below if managers exist
-pcall(function()
-    local FluentTab = Tabs.GUI_Settings._t
-    local env = (getgenv and getgenv()) or _G
-    local MediaManager = MediaManager or env.MediaManager
-    local InterfaceManager = InterfaceManager or env.InterfaceManager
-    local SaveManager = SaveManager or env.SaveManager
-    local FloatingButtonManager = FloatingButtonManager or env.FloatingButtonManager
-    if MediaManager then
-        MediaManager:SetFolder("VYROX/Media")
-    end
-    if InterfaceManager then
-        InterfaceManager:SetLibrary(Fluent)
-        InterfaceManager:SetFolder("VYROX")
-        InterfaceManager:BuildInterfaceSection(FluentTab)
-        -- theme/interface options exist immediately, so this can load now
-        pcall(function() InterfaceManager:LoadSettings() end)
-    end
-    if SaveManager then
-        SaveManager:SetLibrary(Fluent)
-        SaveManager:SetFolder("VYROX")
-        SaveManager:IgnoreThemeSettings()
-        SaveManager:BuildConfigSection(FluentTab)
-    end
-    if FloatingButtonManager then
-        FloatingButtonManager:SetLibrary(Fluent)
-        FloatingButtonManager:SetFolder("VYROX/Floating")
-        FloatingButtonManager:BuildConfigSection(FluentTab)
-    end
-
-    -- Clean up the stray default folders the UI library creates at load time
-    -- (before our SetFolder calls) plus leftovers from older builds, so only
-    -- the single "VYROX" folder remains. Only deletes them if they are empty
-    -- / safe, and only if the executor supports folder deletion.
-    pcall(function()
-        if not (isfolder and delfolder) then return end
-        local strays = { "FluentSettings", "FloatingButtons", "ImageCache", "FluentShowcase", "VYROXv3" }
-        for _, name in ipairs(strays) do
-            if isfolder(name) then pcall(delfolder, name) end
-        end
-    end)
-
-    -- Deferred loader: run once every UI element exists.
-    VYROX_DeferredAutoload = function()
-        if SaveManager then pcall(function() SaveManager:LoadAutoloadConfig() end) end
-        if FloatingButtonManager then pcall(function() FloatingButtonManager:LoadAutoloadConfig() end) end
-    end
+CloseBtn.MouseButton1Click:Connect(function()
+    Main.Visible=false
 end)
--- ---- end GUI Settings tab ----
+MinBtn.MouseButton1Click:Connect(function()
+    Main.Visible=false
+end)
+
 
 
 
 Tabs.Info:AddSection("Information")
 
 Tabs.Info:AddDiscordInvite({
-	Title = "VYROX | Community",
-	Description = "A community for VYROX Users - official scripts, updates, and support in one place. Created by NEVA.",
+	Title = "NEVAHUB | Community",
+	Description = "A community for NEVAHUB Users - official scripts, updates, and support in one place. Created by NEVA.",
 	Banner = "rbxassetid://75841821715476", 
 	Logo = "rbxassetid://75841821715476",
 	Invite = "https://discord.gg/GTMEDtwmva",
@@ -5202,10 +5243,10 @@ FishingToggle = Tabs.Fish:AddToggle({
     end
 })
 
---local Players = game:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local LocalPlayer = Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Workspace = game:GetService("Workspace")
---local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local FishReplicated = ReplicatedStorage:WaitForChild("FishReplicated")
 local FishingRequest = FishReplicated:WaitForChild("FishingRequest")
 local Config = require(FishReplicated.FishingClient.Config)
@@ -7568,7 +7609,7 @@ local HopToggle = Tabs.Race:AddToggle({
 
                                     -- Hiá»n thá» thÃ´ng bÃ¡o vá»i jobid
                                     Window:Notify({
-                                        Title = "VYROX",
+                                        Title = "NEVAHUB",
                                         Content = "ÄÃ£ vÃ o server: " .. selected,
                                         Image = "rbxassetid://75841821715476",
                                         Duration = 5
@@ -11212,7 +11253,7 @@ end)
 
 Tabs.Raids:AddSection("Raids Dungeons")
 
---local plr = game.Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local plr = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local function GetHRP()
     local char = plr.Character
@@ -11752,9 +11793,9 @@ end)
 
 Tabs.Combat:AddSection("LocalPlayer Settings")
 
---local Players = game:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local UserInputService = game:GetService("UserInputService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = game:GetService("RunService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = game:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local UserInputService = game:GetService("UserInputService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = game:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 local player = Players.LocalPlayer
 
@@ -12589,7 +12630,7 @@ local function fetchServersData(placeId, limit)
   end
 end})
 
---local replicated = game:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local replicated = game:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
 Tabs.Misc:AddTextBox({
     Name = "Input Job Id",
@@ -12915,7 +12956,7 @@ spawn(function()
     end
   end
 end)
---local player = game.Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local player = game.Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local function IsEntityAlive(entity)
     if not entity then return false end
     local humanoid = entity:FindFirstChild("Humanoid")
@@ -13030,12 +13071,12 @@ local HitRegistrationModule = {}
 local MainController = {}
 
 local GameService = game
---local Players = GameService:GetService("Players") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local RunService = GameService:GetService("RunService") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
---local Workspace = GameService:GetService("Workspace") -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Players = GameService:GetService("Players") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local RunService = GameService:GetService("RunService") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local ReplicatedStorage = GameService:GetService("ReplicatedStorage") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local Workspace = GameService:GetService("Workspace") -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 
---local LocalPlayer = Players.LocalPlayer -- [VYROX FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
+--local LocalPlayer = Players.LocalPlayer -- [NEVAHUB FIX] duplicate top-level local removed: the chunk was at 199/200 registers (Luau's hard limit is 200). Already declared identically earlier.
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 local function SafeWaitForChild(parent, childName)
@@ -13254,14 +13295,14 @@ StartMainLoops()
 -- Fluent.Options. This is what actually makes Auto Farm and other toggles come
 -- back ON after a rejoin (previously autoload ran before these were created).
 pcall(function()
-    if type(VYROX_DeferredAutoload) == "function" then
-        VYROX_DeferredAutoload()
+    if type(NEVAHUB_DeferredAutoload) == "function" then
+        NEVAHUB_DeferredAutoload()
     end
 end)
 
 -- ========================================
--- VYROX AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
--- Auto-manages a config named "VYROX Config":
+-- NEVAHUB AUTO-SAVE (true persistence for ALL toggles/sliders/dropdowns)
+-- Auto-manages a config named "NEVAHUB Config":
 --   * ensure it exists + is set as the autoload config,
 --   * re-save it automatically a couple seconds after ANY option changes,
 --   * and periodically as a safety net.
@@ -13272,8 +13313,8 @@ pcall(function()
     local SaveManager = SaveManager or env.SaveManager
     if not (SaveManager and writefile and isfile) then return end
 
-    local AUTO_NAME = "VYROX Config"
-    local folder = SaveManager.Folder or "VYROX"
+    local AUTO_NAME = "NEVAHUB Config"
+    local folder = SaveManager.Folder or "NEVAHUB"
     local autoPath = folder .. "/settings/autoload.txt"
 
     local function ensureAutoloadFlag()
@@ -13337,8 +13378,8 @@ pcall(function()
 end)
 
 Window:Notify({
-  Title = "VYROX",
-  Content = "VYROX is back - crafted for VYROX",
+  Title = "NEVAHUB",
+  Content = "NEVAHUB is back - created by NEVA",
   Image = "rbxassetid://75841821715476",
   Duration = 5
 })
